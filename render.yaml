@@ -8,7 +8,7 @@ services:
     plan: free
     # 构建阶段：只安装依赖 + 编译前后端，不做数据库操作
     buildCommand: |
-      cd backend && npm install && npm run build
+      cd ../frontend && npm install && npx vite build
       cd ../frontend && npm install && npm run build
       mkdir -p ../backend/public
       cp -r ../frontend/dist/* ../backend/public/
