@@ -8,17 +8,24 @@ services:
     plan: free
     # 构建阶段：只安装依赖 + 编译前后端，不做数据库操作
     buildCommand: |
-      cd ../frontend && npm install && npx vite build
-      cd ../frontend && npm install && npm run build
-      mkdir -p ../backend/public
-      cp -r ../frontend/dist/* ../backend/public/
-    # 启动阶段：先数据库迁移，再启动服务
-    startCommand: cd backend && npx prisma migrate deploy && node dist/main.js
+      cd backend
+      npm install
+      npx prisma generate
+      npm run build
+      cd ../frontend
+      npm install
+      npm run build
+      cd ..
+      mkdir -p backend/public
+      cp -r frontend/dist/* backend/public/
+    # 启动阶段：同步数据库结构、首次初始化种子数据，再启动服务
+    startCommand: cd backend && npx prisma db push && npm run db:seed && node dist/main.js
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 10000
+      # 以下变量需要在 Render 面板手动配置
       - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET

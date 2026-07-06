@@ -6,6 +6,15 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 开始填充种子数据...');
 
+  const existingAdmin = await prisma.user.findUnique({
+    where: { username: 'admin' },
+  });
+
+  if (existingAdmin) {
+    console.log('ℹ️ 种子数据已存在，跳过初始化。');
+    return;
+  }
+
   // 1. 创建角色
   const adminRole = await prisma.role.create({
     data: {
