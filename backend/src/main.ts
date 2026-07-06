@@ -3,6 +3,9 @@ import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
 import compression from 'compression';
+import * as express from 'express';
+import { join } from 'path';
+import { existsSync } from 'fs';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -41,6 +44,19 @@ async function bootstrap() {
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api-docs', app, document);
+
+  // 生产环境：提供前端静态文件
+  const publicPath = join(__dirname, '..', 'public');
+  if (existsSync(publicPath)) {
+    app.use(express.static(publicPath));
+    // SPA 支持：所有非 API 请求返回 index.html
+    app.getHttpAdapter().get('*', (req, res) => {
+      if (!req.path.startsWith('/api') && !req.path.startsWith('/api-docs')) {
+        res.sendFile(join(publicPath, 'index.html'));
+      }
+    });
+    console.log(`📁 静态文件服务: ${publicPath}`);
+  }
 
   const port = process.env.PORT || 3001;
   await app.listen(port);

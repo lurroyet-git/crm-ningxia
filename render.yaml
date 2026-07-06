@@ -1,49 +1,33 @@
-# Render.com 一键部署配置
-# 使用方法：
-# 1. Fork 此仓库到 GitHub
-# 2. 在 Render.com 创建 Blueprint，选择此仓库
-# 3. Render 会自动读取 render.yaml 并创建所有服务
-# 4. 在环境变量中填入 DATABASE_URL 和 JWT_SECRET
+# Render.com 一键部署配置（单服务合并版）
+# 前后端合并为一个 Web Service，避免 CORS 问题
 
 services:
-  # 后端 API 服务
   - type: web
-    name: crm-ningxia-api
+    name: crm-ningxia
     runtime: node
-    buildCommand: cd backend && npm install && npx prisma generate && npx prisma migrate deploy
+    plan: free
+    # 构建阶段：安装前后端依赖 + 构建前端 + 复制到后端 public 目录 + 数据库迁移
+    buildCommand: |
+      cd backend && npm install && npx prisma generate
+      cd ../frontend && npm install && npm run build
+      mkdir -p ../backend/public
+      cp -r ../frontend/dist/* ../backend/public/
+      cd ../backend && npx prisma migrate deploy
+    # 启动阶段：运行 NestJS（同时提供 API 和静态文件）
     startCommand: cd backend && node dist/main.js
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
-        value: 3001
+        value: 10000
+      # 以下变量需要在 Render 面板手动配置（Blueprint 创建后）
       - key: DATABASE_URL
-        sync: false  # 需要在 Render 面板手动配置
+        sync: false
       - key: JWT_SECRET
         sync: false
       - key: JWT_EXPIRES_IN
         value: 7d
       - key: BCRYPT_SALT_ROUNDS
         value: 10
-      - key: MINIO_ENDPOINT
-        value: localhost
-      - key: MINIO_PORT
-        value: 9000
     healthCheckPath: /health
-
-  # 前端静态站点
-  - type: static
-    name: crm-ningxia-web
-    runtime: static
-    buildCommand: cd frontend && npm install && npm run build
-    staticPublishPath: frontend/dist
-    envVars:
-      - key: VITE_API_BASE_URL
-        value: https://crm-ningxia-api.onrender.com/api
-    routes:
-      - type: rewrite
-        source: /api/*
-        destination: https://crm-ningxia-api.onrender.com/api/$1
-      - type: rewrite
-        source: /*
-        destination: /index.html
+    autoDeploy: true
