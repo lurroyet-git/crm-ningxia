@@ -1,0 +1,132 @@
+version: "3.8"
+
+# =============================================================================
+# 宁夏CRM作战地图 - 生产环境 Docker Compose 配置
+# 包含：backend、frontend、postgres、redis、nginx
+# 使用镜像构建而非本地开发，环境变量通过 .env 注入
+# =============================================================================
+
+services:
+  # -------------------- PostgreSQL 数据库 --------------------
+  postgres:
+    image: postgres:15-alpine
+    container_name: crm-postgres-prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-crm}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-crm_password}
+      POSTGRES_DB: ${DB_NAME:-crm_db}
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+      # 如需初始化脚本可挂载
+      # - ./backend/prisma/migrations:/docker-entrypoint-initdb.d
+    ports:
+      - "127.0.0.1:5432:5432" # 生产环境仅本地访问，避免暴露公网
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-crm} -d ${DB_NAME:-crm_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - crm-network
+
+  # -------------------- Redis 缓存 --------------------
+  redis:
+    image: redis:7-alpine
+    container_name: crm-redis-prod
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_prod_data:/data
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - crm-network
+
+  # -------------------- 后端 API 服务 --------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: crm-backend-prod
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgresql://${DB_USER:-crm}:${DB_PASSWORD:-crm_password}@postgres:5432/${DB_NAME:-crm_db}?schema=public
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-your-production-jwt-secret-min-32-chars}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3001/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - crm-network
+
+  # -------------------- 前端静态服务 --------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: crm-frontend-prod
+    restart: unless-stopped
+    depends_on:
+      - backend
+    networks:
+      - crm-network
+
+  # -------------------- Nginx 反向代理 --------------------
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: crm-nginx-prod
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro  # HTTPS 证书挂载目录
+      - nginx_cache:/var/cache/nginx
+    depends_on:
+      - backend
+      - frontend
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - crm-network
+
+# =============================================================================
+# 数据持久化卷
+# =============================================================================
+volumes:
+  postgres_prod_data:
+    driver: local
+  redis_prod_data:
+    driver: local
+  nginx_cache:
+    driver: local
+
+# =============================================================================
+# 内部网络（隔离生产环境通信）
+# =============================================================================
+networks:
+  crm-network:
+    driver: bridge

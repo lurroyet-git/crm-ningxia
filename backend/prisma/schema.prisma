@@ -1,0 +1,438 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== 1. 用户与权限 ====================
+model User {
+  id          String    @id @default(uuid())
+  username    String    @unique @db.VarChar(50)
+  password    String    @db.VarChar(255)
+  realName    String    @map("real_name") @db.VarChar(50)
+  email       String?   @db.VarChar(100)
+  phone       String?   @db.VarChar(20)
+  avatar      String?   @db.VarChar(255)
+  department  String?   @db.VarChar(50)
+  roleId      String    @map("role_id")
+  status      Int       @default(1) // 1=正常 0=禁用
+  lastLoginAt DateTime? @map("last_login_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  role Role @relation(fields: [roleId], references: [id])
+
+  ownedCustomers     Customer[]     @relation("CustomerOwner")
+  ownedProjects      Project[]      @relation("ProjectPM")
+  ownedOpportunities Opportunity[]  @relation("OpportunityOwner")
+  createdTasks       Task[]         @relation("TaskCreator")
+  assignedTasks      Task[]         @relation("TaskAssignee")
+  createdMeetings    Meeting[]      @relation("MeetingCreator")
+  inspectionPlans    InspectionPlan[]
+  opsRecords         OpsRecord[]
+
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique @db.VarChar(50)
+  code        String   @unique @db.VarChar(50)
+  description String?  @db.VarChar(200)
+  permissions Json?    // [{menuId, actions: []}]
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  users User[]
+
+  @@map("roles")
+}
+
+// ==================== 2. 客户资产 ====================
+model Customer {
+  id          String   @id @default(uuid())
+  name        String   @db.VarChar(100)
+  type        String   @default("企业") @db.VarChar(20)
+  city        String?  @db.VarChar(50)
+  district    String?  @db.VarChar(50)
+  address     String?  @db.VarChar(255)
+  industry    String?  @db.VarChar(50)
+  grade       String   @default("B") @db.VarChar(10) // A/B/C/D
+  healthStatus String  @default("健康") @map("health_status") @db.VarChar(20) // 健康/关注/风险/流失
+  creditLevel String?  @map("credit_level") @db.VarChar(10)
+  source      String?  @db.VarChar(50)
+  annualRevenue String? @map("annual_revenue") @db.VarChar(50)
+  employeeCount String? @map("employee_count") @db.VarChar(20)
+  ownerId     String   @map("owner_id")
+  contactPhone String? @map("contact_phone") @db.VarChar(20)
+  contactEmail String? @map("contact_email") @db.VarChar(100)
+  remark      String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  owner      User        @relation("CustomerOwner", fields: [ownerId], references: [id])
+  persons    Person[]
+  projects   Project[]
+  powerMaps  PowerMap[]
+  opportunities Opportunity[]
+  changeDetections ChangeDetection[]
+  visitPlans VisitPlan[]
+
+  @@map("customers")
+}
+
+model Person {
+  id         String  @id @default(uuid())
+  customerId String  @map("customer_id")
+  name       String  @db.VarChar(50)
+  position   String? @db.VarChar(50)
+  role       String? @db.VarChar(20) // 决策人/影响人/使用人/信息人
+  phone      String? @db.VarChar(20)
+  email      String? @db.VarChar(100)
+  influence  Int?    @default(50) // 影响力 0-100
+  relationStrength Int? @map("relation_strength") @default(50) // 关系强度 0-100
+  attitude   String? @db.VarChar(10) // 支持/中立/反对
+  remark     String? @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@map("persons")
+}
+
+model PowerMap {
+  id         String  @id @default(uuid())
+  customerId String  @map("customer_id")
+  roleType   String  @map("role_type") @db.VarChar(20) // 决策者/影响者/使用者/信息提供者/反对者
+  personId   String? @map("person_id")
+  influence  Int     @default(50) // 影响力 0-100
+  attitude   String  @default("中立") @db.VarChar(10) // 支持/中立/反对
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@map("power_maps")
+}
+
+// ==================== 3. 项目交付 ====================
+model Project {
+  id          String   @id @default(uuid())
+  projectNo   String   @unique @map("project_no") @db.VarChar(20)
+  name        String   @db.VarChar(100)
+  customerId  String   @map("customer_id")
+  pmId        String   @map("pm_id")
+  stage       String   @default("需求") @db.VarChar(20) // 需求/设计/开发/测试/验收/运维
+  status      String   @default("正常") @db.VarChar(20) // 正常/预警/延期/已完成
+  progress    Int      @default(0) // 0-100
+  planStart   DateTime @map("plan_start")
+  planEnd     DateTime @map("plan_end")
+  actualStart DateTime? @map("actual_start")
+  actualEnd   DateTime? @map("actual_end")
+  description String?  @db.Text
+  budget      String?  @db.VarChar(50)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  customer   Customer   @relation(fields: [customerId], references: [id])
+  pm         User       @relation("ProjectPM", fields: [pmId], references: [id])
+  nodes      ProjectNode[]
+  meetings   Meeting[]
+  tasks      Task[]
+  opsRecords OpsRecord[]
+
+  @@map("projects")
+}
+
+model ProjectNode {
+  id                String   @id @default(uuid())
+  projectId         String   @map("project_id")
+  nodeName          String   @map("node_name") @db.VarChar(50)
+  sequence          Int      @default(0)
+  planDate          DateTime @map("plan_date")
+  actualDate        DateTime? @map("actual_date")
+  status            String   @default("未开始") @db.VarChar(20) // 未开始/进行中/已完成/已延期
+  ownerId           String?  @map("owner_id")
+  acceptanceCriteria String? @map("acceptance_criteria") @db.Text
+  remark            String?  @db.Text
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("project_nodes")
+}
+
+model Meeting {
+  id         String   @id @default(uuid())
+  projectId  String   @map("project_id")
+  title      String   @db.VarChar(100)
+  type       String   @db.VarChar(20) // 周会/评审会/复盘会/汇报会/协调会
+  startTime  DateTime @map("start_time")
+  endTime    DateTime @map("end_time")
+  location   String?  @db.VarChar(100)
+  attendees  Json?    // [{name, company, role}]
+  minutes    String?  @db.Text
+  todos      Json?    // [{content, assigneeId, deadline, status}]
+  attachments Json?   // [{name, url, size}]
+  reminder   Boolean  @default(true)
+  createdBy  String   @map("created_by")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  creator   User    @relation("MeetingCreator", fields: [createdBy], references: [id])
+
+  @@map("meetings")
+}
+
+model Task {
+  id          String   @id @default(uuid())
+  projectId   String   @map("project_id")
+  title       String   @db.VarChar(100)
+  description String?  @db.Text
+  priority    String   @default("P2") @db.VarChar(5) // P0/P1/P2/P3
+  tags        Json?    // ["数据", "CRM", "BI", "OA", "安全"]
+  assigneeId  String?  @map("assignee_id")
+  column      String   @default("待跟进") @db.VarChar(20) // 本周重点/进行中/待跟进/已完成
+  sortOrder   Int      @default(0) @map("sort_order")
+  dueDate     DateTime? @map("due_date")
+  progress    Int      @default(0) // 0-100
+  status      String   @default("正常") @db.VarChar(20) // 正常/预警/阻塞
+  createdBy   String   @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee User?   @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  creator  User    @relation("TaskCreator", fields: [createdBy], references: [id])
+
+  @@map("tasks")
+}
+
+// ==================== 4. 运维管理 ====================
+model OpsRecord {
+  id          String   @id @default(uuid())
+  ticketNo    String   @unique @map("ticket_no") @db.VarChar(20)
+  title       String   @db.VarChar(100)
+  type        String   @db.VarChar(20) // 故障/变更/咨询/其他
+  priority    String   @default("中") @db.VarChar(10) // 高/中/低
+  status      String   @default("待处理") @db.VarChar(20) // 待处理/处理中/已完成/已关闭
+  projectId   String?  @map("project_id")
+  customerId  String?  @map("customer_id")
+  handlerId   String   @map("handler_id")
+  description String?  @db.Text
+  solution    String?  @db.Text
+  slaDeadline DateTime? @map("sla_deadline")
+  closedAt    DateTime? @map("closed_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  project  Project? @relation(fields: [projectId], references: [id])
+  handler  User     @relation(fields: [handlerId], references: [id])
+
+  @@map("ops_records")
+}
+
+model InspectionPlan {
+  id          String   @id @default(uuid())
+  name        String   @db.VarChar(100)
+  type        String   @db.VarChar(20) // 日常巡检/深度巡检/专项巡检
+  frequency   String   @db.VarChar(20) // 每日/每周/每月
+  cycle       Int      @default(1) // 周期次数
+  startDate   DateTime @map("start_date")
+  endDate     DateTime? @map("end_date")
+  executorId  String   @map("executor_id")
+  items       Json     // [{content, standard, method}]
+  status      String   @default("启用") @db.VarChar(20) // 启用/暂停/完成
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  executor User @relation(fields: [executorId], references: [id])
+
+  @@map("inspection_plans")
+}
+
+model Asset {
+  id          String   @id @default(uuid())
+  assetNo     String   @unique @map("asset_no") @db.VarChar(20)
+  name        String   @db.VarChar(100)
+  category    String   @db.VarChar(50) // 服务器/网络/存储/安全/办公
+  model       String?  @db.VarChar(100)
+  vendor      String?  @db.VarChar(50)
+  location    String?  @db.VarChar(100)
+  status      String   @default("正常") @db.VarChar(20) // 正常/维修/报废/闲置
+  purchaseDate DateTime? @map("purchase_date")
+  warrantyDate DateTime? @map("warranty_date")
+  price       String?  @db.VarChar(20)
+  remark      String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("assets")
+}
+
+model OpsRule {
+  id          String   @id @default(uuid())
+  name        String   @db.VarChar(100)
+  type        String   @db.VarChar(20) // 自动化/预警/SLA/质量
+  condition   String   @db.Text // 规则条件JSON
+  action      String   @db.Text // 执行动作JSON
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("ops_rules")
+}
+
+// ==================== 5. 商机营销 ====================
+model Opportunity {
+  id          String   @id @default(uuid())
+  oppNo       String   @unique @map("opp_no") @db.VarChar(20)
+  title       String   @db.VarChar(100)
+  customerId  String   @map("customer_id")
+  amount      String?  @db.VarChar(20) // 预计金额
+  stage       String   @default("线索") @db.VarChar(20) // 线索/商机/方案/报价/谈判/赢单/丢单
+  probability Int      @default(10) // 赢单概率 0-100
+  expectedCloseDate DateTime? @map("expected_close_date")
+  source      String?  @db.VarChar(50)
+  ownerId     String   @map("owner_id")
+  description String?  @db.Text
+  competitors String?  @db.Text
+  status      String   @default("跟进中") @db.VarChar(20)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  customer Customer @relation(fields: [customerId], references: [id])
+  owner    User     @relation("OpportunityOwner", fields: [ownerId], references: [id])
+
+  @@map("opportunities")
+}
+
+model FollowUp {
+  id            String   @id @default(uuid())
+  opportunityId String   @map("opportunity_id")
+  customerId    String   @map("customer_id")
+  type          String   @db.VarChar(20) // 电话/邮件/拜访/会议/其他
+  content       String   @db.Text
+  nextPlan      String?  @map("next_plan") @db.Text
+  nextDate      DateTime? @map("next_date")
+  createdBy     String   @map("created_by")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@map("follow_ups")
+}
+
+model VisitPlan {
+  id          String   @id @default(uuid())
+  customerId  String   @map("customer_id")
+  purpose     String   @db.VarChar(100)
+  visitDate   DateTime @map("visit_date")
+  visitTime   String?  @map("visit_time") @db.VarChar(20)
+  attendees   Json?    // [{name, company, role}]
+  location    String?  @db.VarChar(200)
+  status      String   @default("计划") @db.VarChar(20) // 计划/已完成/取消
+  result      String?  @db.Text
+  createdBy   String   @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@map("visit_plans")
+}
+
+// ==================== 6. 知识分享 ====================
+model KnowledgeMaterial {
+  id          String   @id @default(uuid())
+  title       String   @db.VarChar(100)
+  type        String   @db.VarChar(20) // 方案/培训/案例/工具/文档
+  category    String   @db.VarChar(50)
+  tags        Json?    // ["数据", "CRM", "BI"]
+  content     String?  @db.Text
+  fileUrl     String?  @map("file_url") @db.VarChar(255)
+  fileSize    Int?     @map("file_size")
+  downloadCount Int    @default(0) @map("download_count")
+  likeCount   Int      @default(0) @map("like_count")
+  createdBy   String   @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("knowledge_materials")
+}
+
+model TrainingPlan {
+  id          String   @id @default(uuid())
+  title       String   @db.VarChar(100)
+  type        String   @db.VarChar(20) // 技术培训/产品培训/管理培训
+  target      String?  @db.VarChar(200) // 培训对象
+  startDate   DateTime @map("start_date")
+  endDate     DateTime @map("end_date")
+  instructor  String?  @db.VarChar(50)
+  location    String?  @db.VarChar(100)
+  status      String   @default("计划中") @db.VarChar(20) // 计划中/进行中/已完成
+  materialIds Json?    @map("material_ids") // 关联素材ID列表
+  createdBy   String   @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("training_plans")
+}
+
+// ==================== 7. 数据质量与变更检测 ====================
+model DataQualityLog {
+  id          String   @id @default(uuid())
+  entityType  String   @map("entity_type") @db.VarChar(20) // customer/project/opportunity
+  entityId    String   @map("entity_id")
+  checkType   String   @map("check_type") @db.VarChar(50)
+  score       Int      @default(100) // 0-100
+  issues      Json?    // [{field, issue, severity}]
+  checkedAt   DateTime @default(now()) @map("checked_at")
+
+  @@map("data_quality_logs")
+}
+
+model ChangeDetection {
+  id          String   @id @default(uuid())
+  customerId  String   @map("customer_id")
+  changeType  String   @map("change_type") @db.VarChar(50) // 工商变更/人事变动/业务扩展/负面舆情
+  oldValue    String?  @map("old_value") @db.Text
+  newValue    String?  @map("new_value") @db.Text
+  source      String?  @db.VarChar(50)
+  status      String   @default("未处理") @db.VarChar(20) // 未处理/已确认/已忽略
+  handledBy   String?  @map("handled_by")
+  handledAt   DateTime? @map("handled_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@map("change_detections")
+}
+
+// ==================== 8. 系统配置与日志 ====================
+model SystemConfig {
+  id    String @id @default(uuid())
+  key   String @unique @db.VarChar(50)
+  value String @db.Text
+  desc  String? @db.VarChar(200)
+
+  @@map("system_configs")
+}
+
+model OperationLog {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  action    String   @db.VarChar(50) // CREATE/UPDATE/DELETE/LOGIN/EXPORT
+  module    String   @db.VarChar(50)
+  resource  String   @db.VarChar(100)
+  detail    String?  @db.Text
+  ip        String?  @db.VarChar(50)
+  userAgent String?  @map("user_agent") @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("operation_logs")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  title     String   @db.VarChar(100)
+  content   String   @db.Text
+  type      String   @db.VarChar(20) // ops/biz/customer/meeting
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("notifications")
+}
