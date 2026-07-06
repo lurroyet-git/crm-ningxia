@@ -6,21 +6,19 @@ services:
     name: crm-ningxia
     runtime: node
     plan: free
-    # 构建阶段：安装前后端依赖 + 构建前端 + 复制到后端 public 目录 + 数据库迁移
+    # 构建阶段：只安装依赖 + 编译前后端，不做数据库操作
     buildCommand: |
-      cd backend && npm install && npm run build && npx prisma generate
+      cd backend && npm install && npm run build
       cd ../frontend && npm install && npm run build
       mkdir -p ../backend/public
       cp -r ../frontend/dist/* ../backend/public/
-      cd ../backend && npx prisma migrate deploy
-    # 启动阶段：运行 NestJS（同时提供 API 和静态文件）
-    startCommand: cd backend && node dist/main.js
+    # 启动阶段：先数据库迁移，再启动服务
+    startCommand: cd backend && npx prisma migrate deploy && node dist/main.js
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 10000
-      # 以下变量需要在 Render 面板手动配置（Blueprint 创建后）
       - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET
