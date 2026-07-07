@@ -143,7 +143,7 @@ export default function BizPool() {
 
   const kpiCards = [
     { title: '商机总数', value: statistics?.total ?? 0, color: '#1e3a5f' },
-    { title: '本月新增', value: statistics?.monthlyNew ?? 0, color: '#3b82f6' },
+    { title: '本月新增', value: statistics?.thisMonthNew ?? 0, color: '#3b82f6' },
     { title: '线索', value: statistics?.leadCount ?? 0, color: '#6b7280' },
     { title: '方案', value: statistics?.proposalCount ?? 0, color: '#8b5cf6' },
     { title: '报价', value: statistics?.quoteCount ?? 0, color: '#f59e0b' },

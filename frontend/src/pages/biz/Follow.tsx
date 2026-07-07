@@ -66,7 +66,13 @@ export default function BizFollow() {
   const handleSave = async () => {
     try {
       const values = await form.validateFields();
-      await request.post('/biz/follow-ups', values);
+      await request.post('/biz/follow-ups', {
+        type: values.type,
+        content: values.content,
+        nextPlan: values.nextPlan,
+        customerId: values.customer || '',
+        opportunityId: values.opportunity || '',
+      });
       message.success('创建成功');
       setIsModalOpen(false);
       fetchData();
