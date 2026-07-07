@@ -40,7 +40,16 @@ export class BizService {
         this.prisma.opportunity.count({ where }),
       ]);
 
-      return { list, total, page, pageSize };
+      return {
+        list: list.map((item: any) => ({
+          ...item,
+          customer: item.customer?.name || '',
+          owner: item.owner?.realName || '',
+        })),
+        total,
+        page,
+        pageSize,
+      };
     } catch (error) {
       this.logger.error('findAllOpportunities failed', error);
       throw error;
@@ -61,7 +70,14 @@ export class BizService {
         where: { createdAt: { gte: startOfMonth } },
       });
 
-      return { total, stageStats, thisMonthNew };
+      return {
+        total,
+        thisMonthNew,
+        leadCount: stageStats.find((s) => s.stage === '线索')?._count?.id ?? 0,
+        proposalCount: stageStats.find((s) => s.stage === '方案')?._count?.id ?? 0,
+        quoteCount: stageStats.find((s) => s.stage === '报价')?._count?.id ?? 0,
+        wonAmount: 0, // TODO: calculate actual won amount from opportunities where stage='赢单'
+      };
     } catch (error) {
       this.logger.error('statistics failed', error);
       throw error;
@@ -145,6 +161,43 @@ export class BizService {
   }
 
   // ==================== 跟进记录 ====================
+  async findAllFollowUps(query: any) {
+    try {
+      const page = Number(query.page) || 1;
+      const pageSize = Number(query.pageSize) || 10;
+      const skip = (page - 1) * pageSize;
+
+      const where: any = {};
+      if (query.customer) where.customerId = { contains: query.customer };
+      if (query.type) where.type = query.type;
+
+      const [list, total] = await Promise.all([
+        this.prisma.followUp.findMany({
+          where,
+          skip,
+          take: pageSize,
+          orderBy: { createdAt: 'desc' },
+        }),
+        this.prisma.followUp.count({ where }),
+      ]);
+
+      return {
+        list: list.map((item: any) => ({
+          ...item,
+          customer: item.customerId || '',
+          opportunity: item.opportunityId || '',
+          creator: item.createdBy || '',
+        })),
+        total,
+        page,
+        pageSize,
+      };
+    } catch (error) {
+      this.logger.error('findAllFollowUps failed', error);
+      throw error;
+    }
+  }
+
   async findFollowUps(opportunityId: string) {
     try {
       return await this.prisma.followUp.findMany({
@@ -170,6 +223,29 @@ export class BizService {
       });
     } catch (error) {
       this.logger.error('createFollowUp failed', error);
+      throw error;
+    }
+  }
+
+  async updateFollowUp(id: string, dto: Partial<CreateFollowUpDto>) {
+    try {
+      const data: any = { ...dto };
+      if (dto.nextDate) data.nextDate = new Date(dto.nextDate);
+      return await this.prisma.followUp.update({
+        where: { id },
+        data,
+      });
+    } catch (error) {
+      this.logger.error('updateFollowUp failed', error);
+      throw error;
+    }
+  }
+
+  async removeFollowUp(id: string) {
+    try {
+      return await this.prisma.followUp.delete({ where: { id } });
+    } catch (error) {
+      this.logger.error('removeFollowUp failed', error);
       throw error;
     }
   }
@@ -268,6 +344,15 @@ export class BizService {
       });
     } catch (error) {
       this.logger.error('checkin failed', error);
+      throw error;
+    }
+  }
+
+  async removeVisitPlan(id: string) {
+    try {
+      return await this.prisma.visitPlan.delete({ where: { id } });
+    } catch (error) {
+      this.logger.error('removeVisitPlan failed', error);
       throw error;
     }
   }

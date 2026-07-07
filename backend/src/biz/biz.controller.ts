@@ -67,7 +67,11 @@ export class BizController {
     return this.bizService.removeOpportunity(id);
   }
 
-  // ==================== 跟进记录 ====================
+  @ApiOperation({ summary: '跟进记录列表（全局）' })
+  @Get('follow-ups')
+  async findAllFollowUps(@Query() query: any) {
+    return this.bizService.findAllFollowUps(query);
+  }
   @ApiOperation({ summary: '跟进记录列表' })
   @Get('opportunities/:id/follow-ups')
   async findFollowUps(@Param('id') id: string) {
@@ -84,6 +88,21 @@ export class BizController {
     // 先获取商机对应的客户ID
     const opportunity = await this.bizService.findOneOpportunity(id);
     return this.bizService.createFollowUp(id, opportunity.customerId, user.id, dto);
+  }
+
+  @ApiOperation({ summary: '更新跟进记录' })
+  @Put('opportunities/:id/follow-ups/:followUpId')
+  async updateFollowUp(
+    @Param('followUpId') followUpId: string,
+    @Body() dto: CreateFollowUpDto,
+  ) {
+    return this.bizService.updateFollowUp(followUpId, dto);
+  }
+
+  @ApiOperation({ summary: '删除跟进记录' })
+  @Delete('opportunities/:id/follow-ups/:followUpId')
+  async removeFollowUp(@Param('followUpId') followUpId: string) {
+    return this.bizService.removeFollowUp(followUpId);
   }
 
   // ==================== 拜访计划 ====================
@@ -113,7 +132,13 @@ export class BizController {
 
   @ApiOperation({ summary: '拜访签到' })
   @Post('visit-plans/:id/checkin')
-  async checkin(@Param('id') id: string, @Body() location: { lat: number; lng: number }) {
-    return this.bizService.checkin(id, location);
+  async checkin(@Param('id') id: string, @Body() body: any) {
+    return this.bizService.checkin(id, body.location || { lat: 0, lng: 0 });
+  }
+
+  @ApiOperation({ summary: '删除拜访计划' })
+  @Delete('visit-plans/:id')
+  async removeVisitPlan(@Param('id') id: string) {
+    return this.bizService.removeVisitPlan(id);
   }
 }
