@@ -7,6 +7,8 @@
 # -------------------- Stage 1: Builder --------------------
 FROM node:18-alpine AS builder
 
+RUN apk add --no-cache openssl
+
 # 设置工作目录
 WORKDIR /app
 
@@ -30,7 +32,7 @@ RUN npm run build
 FROM node:18-alpine AS production
 
 # 安装系统依赖（如需要）
-RUN apk add --no-cache dumb-init
+RUN apk add --no-cache dumb-init openssl
 
 # 创建非 root 用户运行应用
 RUN addgroup -g 1001 -S nodejs && \

@@ -51,7 +51,11 @@ async function bootstrap() {
     app.use(express.static(publicPath));
     // SPA 支持：所有非 API 请求返回 index.html
     app.getHttpAdapter().get('*', (req, res) => {
-      if (!req.path.startsWith('/api') && !req.path.startsWith('/api-docs')) {
+      if (
+        !req.path.startsWith('/api') &&
+        !req.path.startsWith('/api-docs') &&
+        !req.path.startsWith('/health')
+      ) {
         res.sendFile(join(publicPath, 'index.html'));
       }
     });

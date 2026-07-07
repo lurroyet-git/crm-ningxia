@@ -59,6 +59,30 @@ export class RbacController {
     return this.rbacService.assignRoleToUser(dto.userId, dto.roleId);
   }
 
+  @ApiOperation({ summary: '用户列表' })
+  @Get('users')
+  async findAllUsers() {
+    return this.rbacService.findAllUsers();
+  }
+
+  @ApiOperation({ summary: '创建用户' })
+  @Post('users')
+  async createUser(@Body() dto: any) {
+    return this.rbacService.createUser(dto);
+  }
+
+  @ApiOperation({ summary: '更新用户' })
+  @Put('users/:id')
+  async updateUser(@Param('id') id: string, @Body() dto: any) {
+    return this.rbacService.updateUser(id, dto);
+  }
+
+  @ApiOperation({ summary: '删除用户' })
+  @Delete('users/:id')
+  async deleteUser(@Param('id') id: string) {
+    return this.rbacService.deleteUser(id);
+  }
+
   @ApiOperation({ summary: '获取用户角色' })
   @Get('users/:userId/roles')
   async getUserRoles(@Param('userId', ParseUUIDPipe) userId: string) {

@@ -99,8 +99,19 @@ export class OpsController {
     return this.opsService.toggleInspectionPlan(id);
   }
 
+  // ==================== 巡检记录 ====================
+  @ApiOperation({ summary: '巡检记录列表' })
+  @Get('inspection-logs')
+  async findAllInspectionLogs(@Query() query: any) {
+    return this.opsService.findAllInspectionLogs(query);
+  }
+
   // ==================== 资产台账 ====================
-  @ApiOperation({ summary: '资产台账列表' })
+  @ApiOperation({ summary: '资产统计' })
+  @Get('assets/statistics')
+  async assetStatistics() {
+    return this.opsService.assetStatistics();
+  }
   @Get('assets')
   async findAllAssets(@Query() query: QueryAssetDto) {
     return this.opsService.findAllAssets(query);

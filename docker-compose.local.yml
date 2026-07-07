@@ -1,0 +1,73 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: crm-local-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: crm
+      POSTGRES_PASSWORD: crm_password
+      POSTGRES_DB: crm_db
+    ports:
+      - "15432:5432"
+    volumes:
+      - crm_local_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crm -d crm_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: crm-local-redis
+    restart: unless-stopped
+    ports:
+      - "16379:6379"
+    volumes:
+      - crm_local_redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: builder
+    container_name: crm-local-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      DATABASE_URL: postgresql://crm:crm_password@postgres:5432/crm_db?schema=public
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: local-dev-jwt-secret-change-me-32chars
+      JWT_EXPIRES_IN: 7d
+      BCRYPT_SALT_ROUNDS: 10
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: sh -c "npx prisma db push && npm run db:seed && node dist/main.js"
+    ports:
+      - "3001:3001"
+
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: crm-local-nginx
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx/local.conf:/etc/nginx/nginx.conf:ro
+      - ../cockpit_ui:/usr/share/nginx/html:ro
+    depends_on:
+      - backend
+
+volumes:
+  crm_local_postgres_data:
+  crm_local_redis_data:

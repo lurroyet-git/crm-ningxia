@@ -1,0 +1,10 @@
+node_modules
+dist
+public
+coverage
+.env
+.env.*
+npm-debug.log*
+Dockerfile
+test
+uploads

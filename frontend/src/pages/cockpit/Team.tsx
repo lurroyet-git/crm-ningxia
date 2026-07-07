@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  Card, Table, Avatar, Tag, Button, Input, Modal, Form, Select, message, Popconfirm, Row, Col
+  Card, Table, Avatar, Tag, Button, Input, Modal, Form, Select, message, Popconfirm, Row, Col, Spin
 } from 'antd';
 import {
   PlusOutlined, SearchOutlined, EditOutlined, DeleteOutlined, UserOutlined
 } from '@ant-design/icons';
+import request from '../../utils/request';
 
 interface Member {
   id: string;
@@ -21,15 +22,35 @@ export default function CockpitTeam() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [searchText, setSearchText] = useState('');
+  const [members, setMembers] = useState<Member[]>([]);
+  const [loading, setLoading] = useState(true);
   const [form] = Form.useForm();
 
-  const [members, setMembers] = useState<Member[]>([
-    { id: '1', name: '张伟', department: '销售部', role: '销售经理', status: '在职', email: 'zhangwei@example.com', phone: '13800138001' },
-    { id: '2', name: '李娜', department: '运维部', role: '运维主管', status: '在职', email: 'lina@example.com', phone: '13800138002' },
-    { id: '3', name: '王强', department: '交付部', role: '项目经理', status: '在职', email: 'wangqiang@example.com', phone: '13800138003' },
-    { id: '4', name: '赵敏', department: '销售部', role: '客户经理', status: '休假', email: 'zhaomin@example.com', phone: '13800138004' },
-    { id: '5', name: '刘洋', department: '运维部', role: '运维工程师', status: '在职', email: 'liuyang@example.com', phone: '13800138005' },
-  ]);
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = async () => {
+    setLoading(true);
+    try {
+      const res = await request.get('/rbac/users');
+      const mapped = (res || []).map((u: any) => ({
+        id: u.id,
+        name: u.realName || u.username,
+        avatar: u.avatar,
+        department: u.department || '未分配',
+        role: u.role?.name || '未分配',
+        status: u.status === 1 ? '在职' : '禁用',
+        email: u.email || '-',
+        phone: u.phone || '-',
+      }));
+      setMembers(mapped);
+    } catch (e) {
+      // 错误已在拦截器中处理
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredMembers = members.filter(
     (m) =>
@@ -51,20 +72,27 @@ export default function CockpitTeam() {
     setIsModalOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    setMembers((prev) => prev.filter((m) => m.id !== id));
-    message.success('删除成功');
+  const handleDelete = async (id: string) => {
+    try {
+      await request.delete(`/rbac/users/${id}`);
+      setMembers((prev) => prev.filter((m) => m.id !== id));
+      message.success('删除成功');
+    } catch (e) {
+      // 错误已在拦截器中处理
+    }
   };
 
   const handleSave = async () => {
     try {
       const values = await form.validateFields();
       if (editingMember) {
+        await request.put(`/rbac/users/${editingMember.id}`, values);
         setMembers((prev) =>
           prev.map((m) => (m.id === editingMember.id ? { ...m, ...values } : m))
         );
         message.success('更新成功');
       } else {
+        await request.post('/rbac/users', values);
         const newMember: Member = {
           id: Date.now().toString(),
           ...values,
@@ -74,6 +102,7 @@ export default function CockpitTeam() {
         message.success('添加成功');
       }
       setIsModalOpen(false);
+      fetchUsers();
     } catch {
       // 表单校验失败
     }
@@ -147,13 +176,15 @@ export default function CockpitTeam() {
           </Col>
         </Row>
 
-        <Table
-          dataSource={filteredMembers}
-          columns={columns}
-          rowKey="id"
-          pagination={{ pageSize: 10 }}
-          size="small"
-        />
+        <Spin spinning={loading}>
+          <Table
+            dataSource={filteredMembers}
+            columns={columns}
+            rowKey="id"
+            pagination={{ pageSize: 10 }}
+            size="small"
+          />
+        </Spin>
       </Card>
 
       <Modal
