@@ -1,59 +1,76 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  Card, Button, Modal, Form, Input, Select, Tag, Row, Col, Badge, message, Popconfirm
+  Card, Button, Modal, Form, Input, Select, Tag, Row, Col, Badge, message, Popconfirm, Spin
 } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, ClockCircleOutlined, UserOutlined } from '@ant-design/icons';
+import request from '../../utils/request';
+import dayjs from 'dayjs';
 
 interface KanbanTask {
   id: string;
   title: string;
-  priority: 'P0' | 'P1' | 'P2';
+  priority: string;
   owner: string;
   deadline: string;
   description?: string;
-  column: '本周重点' | '进行中' | '待跟进' | '已完成';
+  column: string;
+  assigneeId?: string;
 }
 
 const PRIORITY_COLOR: Record<string, string> = {
   P0: '#ef4444',
   P1: '#f59e0b',
   P2: '#3b82f6',
+  P3: '#6b7280',
 };
 
 const COLUMN_COLOR: Record<string, string> = {
-  本周重点: '#fef3c7',
-  进行中: '#dbeafe',
-  待跟进: '#f3e8ff',
-  已完成: '#d1fae5',
+  '本周重点': '#fef3c7',
+  '进行中': '#dbeafe',
+  '待跟进': '#f3e8ff',
+  '已完成': '#d1fae5',
 };
 
 const COLUMN_BORDER: Record<string, string> = {
-  本周重点: '#f59e0b',
-  进行中: '#3b82f6',
-  待跟进: '#8b5cf6',
-  已完成: '#10b981',
+  '本周重点': '#f59e0b',
+  '进行中': '#3b82f6',
+  '待跟进': '#8b5cf6',
+  '已完成': '#10b981',
 };
+
+const COLUMNS = ['本周重点', '进行中', '待跟进', '已完成'];
 
 export default function ProjectKanban() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<KanbanTask | null>(null);
   const [viewingTask, setViewingTask] = useState<KanbanTask | null>(null);
+  const [tasks, setTasks] = useState<KanbanTask[]>([]);
+  const [loading, setLoading] = useState(false);
   const [form] = Form.useForm();
 
-  const [tasks, setTasks] = useState<KanbanTask[]>([
-    { id: '1', title: '完成服务器巡检报告', priority: 'P0', owner: '张伟', deadline: '2024-02-05', column: '本周重点', description: '对宁夏人民医院全部服务器进行巡检并输出报告' },
-    { id: '2', title: '教育局防火墙配置变更', priority: 'P1', owner: '李娜', deadline: '2024-02-06', column: '本周重点' },
-    { id: '3', title: '银行网络割接方案编写', priority: 'P0', owner: '王强', deadline: '2024-02-07', column: '进行中', description: '编写核心网络割接的详细操作步骤及回退方案' },
-    { id: '4', title: '客户满意度回访', priority: 'P2', owner: '赵敏', deadline: '2024-02-08', column: '进行中' },
-    { id: '5', title: '等保测评资料准备', priority: 'P1', owner: '刘洋', deadline: '2024-02-10', column: '待跟进' },
-    { id: '6', title: '中卫数据中心项目验收', priority: 'P0', owner: '张伟', deadline: '2024-02-01', column: '已完成' },
-    { id: '7', title: '季度运维报告汇总', priority: 'P2', owner: '李娜', deadline: '2024-02-03', column: '已完成' },
-  ]);
+  useEffect(() => {
+    fetchData();
+  }, []);
 
-  const columns: Array<KanbanTask['column']> = ['本周重点', '进行中', '待跟进', '已完成'];
-
-  const getColumnTasks = (col: string) => tasks.filter((t) => t.column === col);
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const res = await request.get('/tasks', { params: { pageSize: 100 } });
+      const list = (res.list || []).map((item: any) => ({
+        ...item,
+        owner: item.assignee?.realName || item.assigneeId || '-',
+        deadline: item.dueDate ? dayjs(item.dueDate).format('YYYY-MM-DD') : '-',
+        column: item.column || '待跟进',
+        priority: item.priority || 'P2',
+      }));
+      setTasks(list);
+    } catch (e) {
+      console.error('Failed to fetch tasks', e);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleAdd = (column?: string) => {
     setEditingTask(null);
@@ -66,28 +83,43 @@ export default function ProjectKanban() {
 
   const handleEdit = (task: KanbanTask) => {
     setEditingTask(task);
-    form.setFieldsValue(task);
+    form.setFieldsValue({
+      ...task,
+      deadline: task.deadline && task.deadline !== '-' ? dayjs(task.deadline) : undefined,
+    });
     setIsModalOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    setTasks((prev) => prev.filter((t) => t.id !== id));
-    message.success('删除成功');
+  const handleDelete = async (id: string) => {
+    try {
+      await request.delete(`/tasks/${id}`);
+      message.success('删除成功');
+      fetchData();
+    } catch (e) {
+      message.error('删除失败');
+    }
   };
 
   const handleSave = async () => {
     try {
       const values = await form.validateFields();
+      const payload = {
+        ...values,
+        dueDate: values.deadline ? dayjs(values.deadline).format('YYYY-MM-DD') : undefined,
+      };
+      delete payload.deadline;
+
       if (editingTask) {
-        setTasks((prev) => prev.map((t) => (t.id === editingTask.id ? { ...t, ...values } : t)));
+        await request.put(`/tasks/${editingTask.id}`, payload);
         message.success('更新成功');
       } else {
-        setTasks((prev) => [...prev, { id: Date.now().toString(), ...values }]);
+        await request.post('/tasks', payload);
         message.success('创建成功');
       }
       setIsModalOpen(false);
-    } catch {
-      // 表单校验失败
+      fetchData();
+    } catch (e) {
+      // ignore
     }
   };
 
@@ -96,14 +128,22 @@ export default function ProjectKanban() {
     setDetailModalOpen(true);
   };
 
-  const handleMove = (taskId: string, newColumn: string) => {
-    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, column: newColumn as any } : t)));
+  const handleMove = async (taskId: string, newColumn: string) => {
+    try {
+      await request.put(`/tasks/${taskId}/column`, { column: newColumn });
+      message.success(`已移动到「${newColumn}」`);
+      fetchData();
+    } catch (e) {
+      message.error('移动失败');
+    }
   };
 
+  const getColumnTasks = (col: string) => tasks.filter((t) => t.column === col);
+
   return (
-    <div>
+    <Spin spinning={loading}>
       <Row gutter={[16, 16]}>
-        {columns.map((col) => {
+        {COLUMNS.map((col) => {
           const colTasks = getColumnTasks(col);
           return (
             <Col span={6} key={col}>
@@ -170,7 +210,6 @@ export default function ProjectKanban() {
         })}
       </Row>
 
-      {/* 新建/编辑 Modal */}
       <Modal
         title={editingTask ? '编辑任务' : '新建任务'}
         open={isModalOpen}
@@ -195,7 +234,7 @@ export default function ProjectKanban() {
             <Col span={12}>
               <Form.Item name="column" label="所属列" rules={[{ required: true }]}>
                 <Select>
-                  {columns.map((c) => <Select.Option key={c} value={c}>{c}</Select.Option>)}
+                  {COLUMNS.map((c) => <Select.Option key={c} value={c}>{c}</Select.Option>)}
                 </Select>
               </Form.Item>
             </Col>
@@ -207,7 +246,7 @@ export default function ProjectKanban() {
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="deadline" label="截止日期" rules={[{ required: true, message: '请选择截止日期' }]}>
+              <Form.Item name="deadline" label="截止日期">
                 <Input type="date" />
               </Form.Item>
             </Col>
@@ -218,7 +257,6 @@ export default function ProjectKanban() {
         </Form>
       </Modal>
 
-      {/* 详情 Modal */}
       <Modal
         title="任务详情"
         open={detailModalOpen}
@@ -233,11 +271,10 @@ export default function ProjectKanban() {
                   if (viewingTask) {
                     handleMove(viewingTask.id, col);
                     setDetailModalOpen(false);
-                    message.success(`已移动到「${col}」`);
                   }
                 }}
               >
-                {columns.filter((c) => c !== viewingTask?.column).map((c) => (
+                {COLUMNS.filter((c) => c !== viewingTask?.column).map((c) => (
                   <Select.Option key={c} value={c}>{c}</Select.Option>
                 ))}
               </Select>
@@ -285,6 +322,6 @@ export default function ProjectKanban() {
           </div>
         )}
       </Modal>
-    </div>
+    </Spin>
   );
 }

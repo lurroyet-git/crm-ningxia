@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  Card, Table, Tag, Button, Modal, Form, Input, DatePicker, Select, message, Popconfirm, Row, Col
+  Card, Table, Tag, Button, Modal, Form, Input, DatePicker, Select, message, Popconfirm, Row, Col, Spin
 } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, FileTextOutlined, EyeOutlined } from '@ant-design/icons';
+import request from '../../utils/request';
+import dayjs from 'dayjs';
 
 interface Meeting {
   id: string;
@@ -14,7 +16,7 @@ interface Meeting {
   location: string;
   attendees: string[];
   status: string;
-  summary?: string;
+  minutes?: string;
 }
 
 export default function ProjectMeeting() {
@@ -22,32 +24,49 @@ export default function ProjectMeeting() {
   const [summaryModalOpen, setSummaryModalOpen] = useState(false);
   const [editingMeeting, setEditingMeeting] = useState<Meeting | null>(null);
   const [viewingSummary, setViewingSummary] = useState<Meeting | null>(null);
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 });
   const [form] = Form.useForm();
 
-  const [meetings, setMeetings] = useState<Meeting[]>([
-    {
-      id: '1', title: '宁夏人民医院项目启动会', projectName: '宁夏人民医院数据中心建设',
-      type: '项目启动', startTime: '2024-01-03 09:00', endTime: '2024-01-03 11:00',
-      location: '会议室A', attendees: ['张伟', '李娜', '王强'], status: '已完成',
-      summary: '会议确定了项目整体目标、里程碑节点及各方职责分工。客户方由信息科主任主持，明确需求优先级。',
-    },
-    {
-      id: '2', title: '教育局网络安全方案评审', projectName: '银川市教育局网络安全升级',
-      type: '方案评审', startTime: '2024-01-20 14:00', endTime: '2024-01-20 16:00',
-      location: '线上会议', attendees: ['刘洋', '赵敏', '客户代表'], status: '已完成',
-      summary: '方案通过评审，客户对网络拓扑设计表示认可，需补充等保2.0合规条款说明。',
-    },
-    {
-      id: '3', title: '石嘴山银行周例会', projectName: '石嘴山银行核心网络改造',
-      type: '周例会', startTime: '2024-02-05 10:00', endTime: '2024-02-05 11:00',
-      location: '客户现场', attendees: ['王强', '刘洋'], status: '待开始',
-    },
-    {
-      id: '4', title: '人民医院设备到货验收', projectName: '宁夏人民医院数据中心建设',
-      type: '验收会议', startTime: '2024-02-10 09:30', endTime: '2024-02-10 11:30',
-      location: '机房', attendees: ['张伟', '李娜', '供应商'], status: '待开始',
-    },
-  ]);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+
+  useEffect(() => {
+    fetchData();
+    fetchProjects();
+  }, [pagination.current, pagination.pageSize]);
+
+  const fetchProjects = async () => {
+    setProjectsLoading(true);
+    try {
+      const res = await request.get('/projects', { params: { pageSize: 100 } });
+      setProjects(res.list || []);
+    } catch (e) {
+      console.error('Failed to fetch projects', e);
+    } finally {
+      setProjectsLoading(false);
+    }
+  };
+
+  const fetchData = async (page = pagination.current, pageSize = pagination.pageSize) => {
+    setLoading(true);
+    try {
+      const res = await request.get('/meetings', { params: { page, pageSize } });
+      const list = (res.list || []).map((item: any) => ({
+        ...item,
+        projectName: item.project?.name || '-',
+        attendees: Array.isArray(item.attendees) ? item.attendees.map((a: any) => a.name || a) : [],
+        status: item.status || '待开始',
+      }));
+      setMeetings(list);
+      setPagination({ current: page, pageSize, total: res.total || 0 });
+    } catch (e) {
+      console.error('Failed to fetch meetings', e);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleAdd = () => {
     setEditingMeeting(null);
@@ -59,14 +78,19 @@ export default function ProjectMeeting() {
     setEditingMeeting(meeting);
     form.setFieldsValue({
       ...meeting,
-      timeRange: [meeting.startTime, meeting.endTime],
+      timeRange: [dayjs(meeting.startTime), dayjs(meeting.endTime)],
     });
     setIsModalOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    setMeetings((prev) => prev.filter((m) => m.id !== id));
-    message.success('删除成功');
+  const handleDelete = async (id: string) => {
+    try {
+      await request.delete(`/meetings/${id}`);
+      message.success('删除成功');
+      fetchData();
+    } catch (e) {
+      message.error('删除失败');
+    }
   };
 
   const handleSave = async () => {
@@ -75,20 +99,21 @@ export default function ProjectMeeting() {
       const { timeRange, ...restValues } = values;
       const payload = {
         ...restValues,
-        startTime: timeRange?.[0],
-        endTime: timeRange?.[1],
+        startTime: timeRange?.[0] ? dayjs(timeRange[0]).format('YYYY-MM-DD HH:mm:ss') : undefined,
+        endTime: timeRange?.[1] ? dayjs(timeRange[1]).format('YYYY-MM-DD HH:mm:ss') : undefined,
       };
 
       if (editingMeeting) {
-        setMeetings((prev) => prev.map((m) => (m.id === editingMeeting.id ? { ...m, ...payload } : m)));
+        await request.put(`/meetings/${editingMeeting.id}`, payload);
         message.success('更新成功');
       } else {
-        setMeetings((prev) => [...prev, { id: Date.now().toString(), ...payload, status: '待开始' }]);
+        await request.post('/meetings', payload);
         message.success('创建成功');
       }
       setIsModalOpen(false);
-    } catch {
-      // 表单校验失败
+      fetchData();
+    } catch (e) {
+      // 表单校验失败或API错误
     }
   };
 
@@ -130,7 +155,7 @@ export default function ProjectMeeting() {
       width: 200,
       render: (_: any, record: Meeting) => (
         <div style={{ display: 'flex', gap: 4 }}>
-          {record.summary && (
+          {record.minutes && (
             <Button type="link" size="small" icon={<FileTextOutlined />} onClick={() => handleViewSummary(record)}>查看纪要</Button>
           )}
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => handleEdit(record)}>编辑</Button>
@@ -162,7 +187,13 @@ export default function ProjectMeeting() {
           dataSource={meetings}
           columns={columns}
           rowKey="id"
-          pagination={{ pageSize: 10 }}
+          loading={loading}
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total: pagination.total,
+            onChange: (page, pageSize) => setPagination({ current: page, pageSize: pageSize || 10, total: pagination.total }),
+          }}
           size="small"
         />
       </Card>
@@ -182,22 +213,29 @@ export default function ProjectMeeting() {
           </Form.Item>
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name="projectName" label="所属项目" rules={[{ required: true, message: '请输入所属项目' }]}>
-                <Input placeholder="所属项目" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="type" label="会议类型" rules={[{ required: true, message: '请选择会议类型' }]}>
-                <Select placeholder="请选择">
-                  <Select.Option value="项目启动">项目启动</Select.Option>
-                  <Select.Option value="方案评审">方案评审</Select.Option>
-                  <Select.Option value="周例会">周例会</Select.Option>
-                  <Select.Option value="验收会议">验收会议</Select.Option>
-                  <Select.Option value="其他">其他</Select.Option>
+              <Form.Item name="projectId" label="所属项目" rules={[{ required: true, message: '请选择所属项目' }]}>
+                <Select placeholder="请选择项目" loading={projectsLoading}>
+                  {projects.map((p) => (
+                    <Select.Option key={p.id} value={p.id}>{p.name}</Select.Option>
+                  ))}
                 </Select>
               </Form.Item>
             </Col>
-          </Row>
+            <Col span={12}>
+                  <Form.Item name="type" label="会议类型" rules={[{ required: true, message: '请选择会议类型' }]}>
+                    <Select placeholder="请选择">
+                      <Select.Option value="项目启动">项目启动</Select.Option>
+                      <Select.Option value="方案评审">方案评审</Select.Option>
+                      <Select.Option value="周会">周会</Select.Option>
+                      <Select.Option value="复盘会">复盘会</Select.Option>
+                      <Select.Option value="汇报会">汇报会</Select.Option>
+                      <Select.Option value="协调会">协调会</Select.Option>
+                      <Select.Option value="需求确认">需求确认</Select.Option>
+                      <Select.Option value="其他">其他</Select.Option>
+                    </Select>
+                  </Form.Item>
+                </Col>
+              </Row>
           <Form.Item name="timeRange" label="会议时间" rules={[{ required: true, message: '请选择会议时间' }]}>
             <DatePicker.RangePicker showTime style={{ width: '100%' }} />
           </Form.Item>
@@ -213,7 +251,7 @@ export default function ProjectMeeting() {
               </Form.Item>
             </Col>
           </Row>
-          <Form.Item name="summary" label="会议纪要">
+          <Form.Item name="minutes" label="会议纪要">
             <Input.TextArea rows={4} placeholder="会议结束后填写纪要..." />
           </Form.Item>
         </Form>
@@ -233,7 +271,7 @@ export default function ProjectMeeting() {
               时间：{viewingSummary.startTime} ~ {viewingSummary.endTime} | 地点：{viewingSummary.location}
             </p>
             <div style={{ background: '#f9fafb', padding: 16, borderRadius: 8, lineHeight: 1.8 }}>
-              {viewingSummary.summary}
+              {viewingSummary.minutes}
             </div>
             <div style={{ marginTop: 16 }}>
               <span style={{ color: '#6b7280', fontSize: 13 }}>参会人：</span>
