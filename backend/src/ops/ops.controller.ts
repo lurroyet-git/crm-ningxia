@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { OpsService } from './ops.service';
+import { RulesService } from './rules.service';
 import { CreateOpsRecordDto } from './dto/create-ops-record.dto';
 import { UpdateOpsRecordDto } from './dto/update-ops-record.dto';
 import { QueryOpsRecordDto } from './dto/query-ops-record.dto';
@@ -23,7 +24,18 @@ import { CreateOpsRuleDto } from './dto/create-ops-rule.dto';
 @ApiBearerAuth()
 @Controller('ops')
 export class OpsController {
-  constructor(private readonly opsService: OpsService) {}
+  constructor(
+    private readonly opsService: OpsService,
+    private readonly rulesService: RulesService,
+  ) {}
+
+  // ==================== 规则引擎 ====================
+  @ApiOperation({ summary: '初始化规则配置' })
+  @Post('rules/seed')
+  async seedRules() {
+    await this.rulesService.seedRules();
+    return { message: '规则初始化完成' };
+  }
 
   // ==================== 运维工单 ====================
   @ApiOperation({ summary: '运维工单列表' })

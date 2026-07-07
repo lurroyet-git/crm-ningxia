@@ -9,11 +9,16 @@ import { CreateAssetDto } from './dto/create-asset.dto';
 import { QueryAssetDto } from './dto/query-asset.dto';
 import { CreateOpsRuleDto } from './dto/create-ops-rule.dto';
 
+import { RulesService } from './rules.service';
+
 @Injectable()
 export class OpsService {
   private readonly logger = new Logger(OpsService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private rulesService: RulesService,
+  ) {}
 
   // ==================== 运维工单 ====================
   async findAllRecords(query: QueryOpsRecordDto) {
@@ -70,13 +75,25 @@ export class OpsService {
   async createRecord(dto: CreateOpsRecordDto) {
     try {
       const ticketNo = `OPS${Date.now().toString().slice(-8)}`;
-      return await this.prisma.opsRecord.create({
+      const record = await this.prisma.opsRecord.create({
         data: {
           ticketNo,
           ...dto,
           slaDeadline: dto.slaDeadline ? new Date(dto.slaDeadline) : undefined,
         },
       });
+
+      // 触发规则评估
+      try {
+        const results = await this.rulesService.evaluate(record);
+        if (results.length > 0) {
+          await this.rulesService.createSignals(record, results);
+        }
+      } catch (ruleError) {
+        this.logger.error('Rule evaluation failed', ruleError);
+      }
+
+      return record;
     } catch (error) {
       this.logger.error('createRecord failed', error);
       throw error;
