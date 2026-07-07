@@ -72,6 +72,15 @@ export class BizController {
   async findAllFollowUps(@Query() query: any) {
     return this.bizService.findAllFollowUps(query);
   }
+  @ApiOperation({ summary: '新增跟进记录（全局）' })
+  @Post('follow-ups')
+  async createFollowUpGlobal(
+    @Body() dto: CreateFollowUpDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.bizService.createFollowUpGlobal(dto, user.id);
+  }
+  // ==================== 跟进记录 ====================
   @ApiOperation({ summary: '跟进记录列表' })
   @Get('opportunities/:id/follow-ups')
   async findFollowUps(@Param('id') id: string) {

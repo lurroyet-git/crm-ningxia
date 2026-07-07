@@ -187,6 +187,7 @@ export class BizService {
           customer: item.customerId || '',
           opportunity: item.opportunityId || '',
           creator: item.createdBy || '',
+          date: item.createdAt ? new Date(item.createdAt).toISOString().slice(0, 10) : '',
         })),
         total,
         page,
@@ -223,6 +224,25 @@ export class BizService {
       });
     } catch (error) {
       this.logger.error('createFollowUp failed', error);
+      throw error;
+    }
+  }
+
+  async createFollowUpGlobal(dto: CreateFollowUpDto, userId: string) {
+    try {
+      return await this.prisma.followUp.create({
+        data: {
+          opportunityId: dto.opportunityId || '',
+          customerId: dto.customerId || '',
+          createdBy: userId,
+          type: dto.type,
+          content: dto.content,
+          nextPlan: dto.nextPlan,
+          nextDate: dto.nextDate ? new Date(dto.nextDate) : undefined,
+        },
+      });
+    } catch (error) {
+      this.logger.error('createFollowUpGlobal failed', error);
       throw error;
     }
   }
