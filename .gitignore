@@ -47,6 +47,7 @@ frontend/e2e/playwright-report/
 # Prisma
 backend/prisma/migrations/*/
 !backend/prisma/migrations/migration_lock.toml
+!backend/prisma/migrations/20260707000001_init/
 
 # Temporary files
 *.tmp
