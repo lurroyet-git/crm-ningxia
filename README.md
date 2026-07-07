@@ -1,262 +1,419 @@
-# 宁夏CRM作战地图 — 从 Demo 到生产
+# 宁夏 CRM 作战地图 - 部署与运行指南
 
-## 项目结构
-
-```
-crm-platform/
-├── docker-compose.yml          # 一键启动 PostgreSQL + Redis + MinIO
-├── backend/                    # NestJS 后端 API 服务
-│   ├── prisma/
-│   │   ├── schema.prisma       # 25 张核心表定义
-│   │   └── seed.ts             # 种子数据（6 用户 + 8 客户 + 1 项目）
-│   └── src/
-│       ├── main.ts             # 服务入口
-│       ├── app.module.ts       # 根模块
-│       ├── auth/               # JWT 认证模块
-│       ├── users/              # 用户管理模块
-│       ├── rbac/               # RBAC 权限模块
-│       └── common/             # 过滤器/拦截器/装饰器/守卫
-└── frontend/                   # React + Ant Design 前端
-    ├── vite.config.ts          # 代理配置（/api → localhost:3001）
-    └── src/
-        ├── App.tsx             # 路由配置（6 模块 23 页）
-        ├── store/auth.ts       # Zustand 全局状态
-        ├── utils/request.ts    # Axios 封装
-        ├── components/
-        │   └── MainLayout.tsx  # 左侧导航 + 顶部栏
-        └── pages/
-            ├── Login.tsx              # 登录页
-            ├── cockpit/               # 作战台（4页）
-            │   ├── Overview.tsx       # 今日概览（KPI + 项目 + 动态）
-            │   ├── Report.tsx         # 经营报表
-            │   ├── Export.tsx         # 数据导出
-            │   └── Team.tsx           # 团队设置
-            ├── project/               # 项目交付（4页）
-            │   ├── Overview.tsx       # 项目概览（列表 + 筛选 + 分页）
-            │   ├── Nodes.tsx          # 项目节点（时间线）
-            │   ├── Meeting.tsx        # 会议管理
-            │   └── Kanban.tsx         # 交付看板（4列）
-            ├── customer/              # 客户资产（3页）
-            │   ├── Assets.tsx         # 客户档案（最复杂）
-            │   ├── Map.tsx            # 区域地图
-            │   └── Network.tsx        # 关系网络
-            ├── ops/                   # 运维管理（占位4页）
-            ├── biz/                   # 商机营销（占位3页）
-            └── knowledge/             # 知识分享（占位2页）
-```
-
-## 快速启动（Phase 1 验证步骤）
-
-### 第 1 步：启动基础设施
-
-```bash
-cd crm-platform
-docker-compose up -d
-```
-
-验证：
-- PostgreSQL: `localhost:5432`
-- Redis: `localhost:6379`
-- MinIO Console: `http://localhost:9001`
-
-### 第 2 步：启动后端
-
-```bash
-cd backend
-npm install
-npx prisma generate
-npx prisma migrate dev --name init
-npm run db:seed
-npm run start:dev
-```
-
-验证：
-- API 服务: `http://localhost:3001`
-- Swagger 文档: `http://localhost:3001/api-docs`
-
-### 第 3 步：启动前端
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-验证：
-- 前端页面: `http://localhost:3000`
-- 测试登录: 用户名 `zhangwei`，密码 `123456`
-
-## API 接口
-
-| 接口 | 方法 | 说明 |
-|------|------|------|
-| **认证** | | |
-| `/auth/login` | POST | 用户登录 |
-| `/users/me` | GET | 当前用户信息 |
-| `/users` | GET | 用户列表 |
-| `/users/:id` | GET | 用户详情 |
-| **作战台** | | |
-| `/dashboard/overview` | GET | 首页 KPI 概览（6 指标聚合） |
-| `/dashboard/alerts` | GET | 待办提醒（前 10 条） |
-| `/dashboard/projects` | GET | 本周项目进度（前 5 条） |
-| `/dashboard/activities` | GET | 运维与商机动态（前 6 条） |
-| **项目交付** | | |
-| `/projects` | GET | 项目列表（筛选 + 分页） |
-| `/projects/statistics` | GET | 项目统计（6 个 KPI） |
-| `/projects` | POST | 创建项目 |
-| `/projects/:id` | GET | 项目详情（含节点/会议/任务） |
-| `/projects/:id` | PUT | 更新项目 |
-| `/projects/:id` | DELETE | 删除项目 |
-| `/projects/:id/nodes` | GET | 项目节点列表 |
-| `/projects/:id/nodes` | POST | 添加节点 |
-| `/nodes/:id` | PUT | 更新节点状态 |
-| `/nodes/:id` | DELETE | 删除节点 |
-| **客户资产** | | |
-| `/customers` | GET | 客户列表（筛选 + 分页） |
-| `/customers/distribution` | GET | 区域分布统计 |
-| `/customers` | POST | 创建客户 |
-| `/customers/:id` | GET | 客户详情（含联系人/项目/商机） |
-| `/customers/:id` | PUT | 更新客户 |
-| `/customers/:id` | DELETE | 删除客户 |
-| `/customers/:id/persons` | GET | 关系人列表 |
-| **运维管理** | | |
-| `/ops/records` | GET | 运维工单列表（筛选分页） |
-| `/ops/records/statistics` | GET | 工单统计（6个KPI） |
-| `/ops/records` | POST | 创建工单 |
-| `/ops/records/:id` | GET | 工单详情 |
-| `/ops/records/:id` | PUT | 更新工单 |
-| `/ops/records/:id` | DELETE | 删除工单 |
-| `/ops/inspection-plans` | GET | 巡检计划列表 |
-| `/ops/inspection-plans` | POST | 创建巡检计划 |
-| `/ops/inspection-plans/:id/toggle` | PUT | 启用/暂停计划 |
-| `/ops/assets` | GET | 资产台账列表 |
-| `/ops/assets` | POST | 新增资产 |
-| `/ops/assets/:id` | PUT | 更新资产 |
-| `/ops/assets/:id` | DELETE | 删除资产 |
-| `/ops/rules` | GET | 规则配置列表 |
-| `/ops/rules` | POST | 创建规则 |
-| `/ops/rules/:id/toggle` | PUT | 启用/禁用规则 |
-| `/ops/rules/:id/test` | POST | 测试规则 |
-| **商机营销** | | |
-| `/biz/opportunities` | GET | 商机列表（筛选分页） |
-| `/biz/opportunities/statistics` | GET | 商机统计 |
-| `/biz/opportunities` | POST | 新增商机 |
-| `/biz/opportunities/:id` | GET | 商机详情 |
-| `/biz/opportunities/:id` | PUT | 更新商机 |
-| `/biz/opportunities/:id/stage` | PUT | 推进商机阶段 |
-| `/biz/opportunities/:id` | DELETE | 删除商机 |
-| `/biz/opportunities/:id/follow-ups` | GET | 跟进记录列表 |
-| `/biz/opportunities/:id/follow-ups` | POST | 新增跟进记录 |
-| `/biz/visit-plans` | GET | 拜访计划列表 |
-| `/biz/visit-plans` | POST | 创建拜访计划 |
-| `/biz/visit-plans/:id/status` | PUT | 更新拜访状态 |
-| `/biz/visit-plans/:id/checkin` | POST | 拜访签到 |
-| **知识分享** | | |
-| `/knowledge/materials` | GET | 知识素材列表（筛选分页） |
-| `/knowledge/materials` | POST | 上传素材 |
-| `/knowledge/materials/:id` | GET | 素材详情 |
-| `/knowledge/materials/:id` | PUT | 更新素材 |
-| `/knowledge/materials/:id` | DELETE | 删除素材 |
-| `/knowledge/materials/:id/like` | POST | 点赞 |
-| `/knowledge/materials/:id/download` | POST | 下载计数 |
-| `/knowledge/training-plans` | GET | 培训计划列表 |
-| `/knowledge/training-plans` | POST | 创建培训计划 |
-| **文件上传** | | |
-| `/upload` | POST | 文件上传（返回URL） |
-| `/upload/avatar` | POST | 头像上传（限制2MB） |
-| `/upload/batch` | POST | 批量上传 |
-| **通知服务** | | |
-| `/notifications` | GET | 通知列表（当前用户） |
-| `/notifications/unread-count` | GET | 未读数量 |
-| `/notifications/:id/read` | PUT | 标记已读 |
-| `/notifications/read-all` | PUT | 全部已读 |
-| `/notifications` | DELETE | 删除通知 |
-| WebSocket | `/notifications` | 实时推送 `notification:new` |
-| **数据质量** | | |
-| `/data-quality/check` | GET | 手动触发质量检查 |
-| `/data-quality/customers/:id` | GET | 单个客户质量评分 |
-| `/data-quality/overview` | GET | 整体质量概览 |
-| `/data-quality/logs` | GET | 检查历史日志 |
-| **变更检测** | | |
-| `/changes` | GET | 变更检测列表 |
-| `/changes` | POST | 手动创建变更记录 |
-| `/changes/:id/confirm` | PUT | 确认变更 |
-| `/changes/:id/ignore` | PUT | 忽略变更 |
-| `/changes/statistics` | GET | 变更统计 |
-
-## 技术栈
-
-| 层级 | 技术 |
-|------|------|
-| 前端 | React 18 + TypeScript + Vite + Ant Design + Zustand |
-| 后端 | NestJS + Prisma + PostgreSQL |
-| 缓存 | Redis |
-| 文件 | MinIO |
-| 容器 | Docker + Docker Compose |
-
-## 开发计划
-
-- [x] **Phase 1** (Week 1-3): 基础架构 + 认证体系 + 前端工程化
-- [x] **Phase 3** (Week 9-12): 运维 + 商机 + 知识 + 数据质量 + 消息通知 + 文件上传
-  - 后端 API: 运维管理(19端点) + 商机营销(14端点) + 知识分享(11端点) + 文件上传(3端点) + 通知服务(5REST+WebSocket) + 数据质量(4端点) + 变更检测(5端点)
-  - 前端页面: 运维管理4页 + 商机营销3页 + 知识分享2页（全部功能页）+ 消息中心Dropdown组件
-- [x] **Phase 4** (Week 13-16): 测试 + UAT + 部署上线
-  - 运维文档: 部署手册、监控方案、应急预案、备份恢复手册
-  - 用户培训: 用户操作手册、快速上手指南、管理员手册
-  - 上线公告模板、系统交付物
-
-## 测试与部署
-
-### 测试
-
-```bash
-# 后端 E2E 测试
-cd backend
-npm run test:e2e
-
-# 前端 E2E 测试
-cd frontend
-npx playwright install
-npx playwright test e2e/
-```
-
-### 生产部署
-
-```bash
-# 一键部署
-chmod +x deploy.sh
-./deploy.sh production
-```
-
-部署后验证：
-- `https://crm.yourcompany.com` — 前端页面
-- `https://crm.yourcompany.com/api` — 后端 API
-- `https://crm.yourcompany.com/api-docs` — Swagger 文档
-
-## 项目统计
-
-| 指标 | 数量 |
-|------|------|
-| 总文件数 | 141 |
-| 总代码/文档行数 | 17,698 |
-| 后端模块 | 13 个 |
-| 后端 API 端点 | 78 个 |
-| 前端页面 | 24 个 |
-| 数据库表 | 25 张 |
-| 测试用例 | 10 个 E2E |
-| 运维文档 | 9 份 |
-
-## 版本历史
-
-| 阶段 | 周期 | 完成内容 |
-|------|------|---------|
-| Phase 1 | Week 1-3 | 基础架构 + 认证体系 + 前端工程化 |
-| Phase 2 | Week 4-8 | 作战台 Dashboard + 项目交付 + 客户资产 |
-| Phase 3 | Week 9-12 | 运维 + 商机 + 知识 + 数据质量 + 通知 + 文件上传 |
-| Phase 4 | Week 13-16 | 测试 + 部署脚本 + 运维文档 + 培训材料 |
+> 技术栈: NestJS + React + TypeScript + PostgreSQL + Prisma + Docker
 
 ---
 
-> 宁夏CRM作战地图 — 从 Demo 到正式上线完整交付  
-> 技术栈: React + NestJS + Prisma + PostgreSQL + Redis + Docker  
-> 文档版本: V1.0  |  交付日期: 2026-07-02
+## 目录
+
+1. [快速启动](#1-快速启动)
+2. [环境要求](#2-环境要求)
+3. [本地开发](#3-本地开发)
+4. [数据库配置](#4-数据库配置)
+5. [Docker 部署](#5-docker-部署)
+6. [目录结构](#6-目录结构)
+7. [常见问题](#7-常见问题)
+
+---
+
+## 1. 快速启动
+
+### 方式一: Docker Compose (推荐)
+
+```bash
+# 克隆仓库
+git clone https://github.com/lurroyet-git/crm-ningxia.git
+cd crm-ningxia
+
+# 启动全部服务 (PostgreSQL + 后端 + 前端 + Nginx)
+docker-compose -f docker-compose.local.yml up --build
+
+# 访问地址
+前端: http://localhost:80
+API  : http://localhost:80/api
+Swagger: http://localhost:80/api-docs
+```
+
+### 方式二: 手动启动
+
+```bash
+# 1. 启动 PostgreSQL (需本地安装)
+# 默认配置: localhost:5432, crm_db, crm_user/123456
+
+# 2. 启动后端
+cd backend
+npm install
+npm run prisma:migrate  # 执行数据库迁移
+npm run start:prod
+
+# 3. 启动前端
+cd frontend
+npm install
+npm run dev
+
+# 访问地址
+前端: http://localhost:3000
+API  : http://localhost:3001
+Swagger: http://localhost:3001/api-docs
+```
+
+---
+
+## 2. 环境要求
+
+| 依赖 | 版本 | 说明 |
+|------|------|------|
+| Node.js | >= 18.x | 前后端运行环境 |
+| npm | >= 9.x | 包管理器 |
+| PostgreSQL | >= 14.x | 数据库 |
+| Docker | >= 24.x | 容器化部署 (可选) |
+| Docker Compose | >= 2.x | 多服务编排 (可选) |
+
+---
+
+## 3. 本地开发
+
+### 3.1 后端开发
+
+```bash
+cd backend
+
+# 安装依赖
+npm install
+
+# 环境配置 (复制后修改)
+cp .env.example .env
+
+# 数据库迁移 (需 PostgreSQL 运行)
+npx prisma migrate deploy
+npx prisma generate
+
+# 启动开发模式 (热重载)
+npm run start:dev
+
+# 或生产模式
+npm run build
+npm run start:prod
+```
+
+**环境变量 (.env):**
+```env
+# 数据库
+DATABASE_URL="postgresql://crm_user:123456@localhost:5432/crm_db?schema=public"
+
+# JWT
+JWT_SECRET="your-secret-key-here"
+JWT_EXPIRES_IN="7d"
+
+# 端口
+PORT=3001
+```
+
+### 3.2 前端开发
+
+```bash
+cd frontend
+
+# 安装依赖
+npm install
+
+# 启动开发服务器
+npm run dev
+
+# 构建生产版本
+npm run build
+
+# 预览生产版本
+npm run preview
+```
+
+**前端代理配置 (vite.config.ts):**
+```typescript
+server: {
+  proxy: {
+    '/api': {
+      target: 'http://localhost:3001',
+      changeOrigin: true,
+      rewrite: (p) => p.replace(/^\/api/, ''),
+    },
+  },
+}
+```
+
+### 3.3 开发脚本 (Windows)
+
+项目已提供 `.bat` 快捷启动脚本:
+
+```bash
+# 后端一键启动
+backend/start-dev.bat
+
+# 前端一键启动
+frontend/start-dev.bat
+```
+
+---
+
+## 4. 数据库配置
+
+### 4.1 本地 PostgreSQL 安装
+
+**Windows (Chocolatey):**
+```powershell
+choco install postgresql
+```
+
+**Mac (Homebrew):**
+```bash
+brew install postgresql
+brew services start postgresql
+```
+
+**Linux (Ubuntu):**
+```bash
+sudo apt-get install postgresql postgresql-contrib
+sudo service postgresql start
+```
+
+### 4.2 创建数据库
+
+```sql
+-- 使用 postgres 用户登录
+psql -U postgres
+
+-- 创建数据库和用户
+CREATE DATABASE crm_db;
+CREATE USER crm_user WITH PASSWORD '123456';
+GRANT ALL PRIVILEGES ON DATABASE crm_db TO crm_user;
+
+-- 退出
+\q
+```
+
+### 4.3 Prisma 迁移
+
+```bash
+cd backend
+
+# 生成迁移文件
+npx prisma migrate dev --name init
+
+# 部署迁移到数据库
+npx prisma migrate deploy
+
+# 生成 Prisma Client
+npx prisma generate
+
+# 查看数据库结构
+npx prisma studio
+```
+
+### 4.4 离线模式说明
+
+如果 PostgreSQL 未运行，后端会自动降级为 **离线模式**:
+- 所有 Prisma 查询返回演示数据
+- 日志显示 `⚠️ 离线模式`
+- 适合前端 UI 开发和演示
+
+**离线模式下的演示数据:**
+- 用户: 5 名演示用户
+- 客户: 8 家演示客户
+- 商机: 5 条演示商机
+- 项目: 3 个演示项目
+- 工单: 若干演示工单
+- 巡检: 2 条计划 + 3 条记录
+- 资产: 24 台演示资产
+- 培训: 2 条计划
+- 素材: 5 条演示素材
+
+---
+
+## 5. Docker 部署
+
+### 5.1 构建镜像
+
+```bash
+# 构建后端镜像
+cd backend
+docker build -t crm-backend .
+
+# 构建前端镜像
+cd frontend
+docker build -t crm-frontend .
+```
+
+### 5.2 Docker Compose 部署
+
+```bash
+# 使用本地开发配置
+docker-compose -f docker-compose.local.yml up --build
+
+# 后台运行
+docker-compose -f docker-compose.local.yml up -d
+
+# 查看日志
+docker-compose -f docker-compose.local.yml logs -f backend
+
+# 停止服务
+docker-compose -f docker-compose.local.yml down
+```
+
+**服务架构:**
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   Nginx     │────▶│   前端      │     │   后端      │
+│  (80端口)   │     │  (3000)     │────▶│  (3001)     │
+└─────────────┘     └─────────────┘     └──────┬──────┘
+                                                 │
+                                          ┌──────┴──────┐
+                                          │  PostgreSQL  │
+                                          │   (5432)     │
+                                          └──────────────┘
+```
+
+### 5.3 生产环境部署
+
+1. 修改环境变量为生产配置
+2. 使用 HTTPS 配置 Nginx
+3. 配置数据库连接池和 Redis 缓存
+4. 设置日志收集和监控告警
+
+---
+
+## 6. 目录结构
+
+```
+crm-ningxia/
+├── backend/                  # 后端服务
+│   ├── prisma/
+│   │   ├── schema.prisma     # 数据库模型定义
+│   │   └── migrations/       # 迁移文件
+│   ├── src/
+│   │   ├── auth/             # 认证模块
+│   │   ├── users/            # 用户模块
+│   │   ├── rbac/             # 权限管理
+│   │   ├── customers/        # 客户管理
+│   │   ├── projects/         # 项目交付 (节点/会议/任务)
+│   │   ├── biz/              # 商机营销 (商机/跟进/拜访)
+│   │   ├── ops/              # 运维管理 (工单/巡检/资产/规则)
+│   │   ├── knowledge/        # 知识分享 (素材/培训)
+│   │   ├── data-quality/     # 数据质量
+│   │   ├── changes/          # 变更检测
+│   │   ├── notifications/    # 通知中心
+│   │   ├── common/           # 公共模块 (守卫/拦截器/过滤器)
+│   │   ├── prisma.service.ts # Prisma 服务
+│   │   └── main.ts           # 入口文件
+│   ├── Dockerfile
+│   └── package.json
+│
+├── frontend/                 # 前端应用
+│   ├── src/
+│   │   ├── pages/            # 页面组件
+│   │   │   ├── biz/          # 商机营销
+│   │   │   ├── customer/     # 客户管理
+│   │   │   ├── project/      # 项目交付
+│   │   │   ├── ops/          # 运维管理
+│   │   │   ├── knowledge/    # 知识分享
+│   │   │   ├── cockpit/      # 驾驶舱
+│   │   │   └── dashboard/    # 首页
+│   │   ├── components/       # 公共组件
+│   │   ├── store/            # 状态管理 (Zustand)
+│   │   ├── utils/            # 工具函数
+│   │   └── App.tsx           # 路由入口
+│   ├── Dockerfile
+│   └── package.json
+│
+├── nginx/                    # Nginx 配置
+│   └── local.conf            # 本地代理配置
+│
+├── docker-compose.local.yml  # Docker Compose 配置
+├── docs/                     # 项目文档
+│   ├── API文档.md            # 接口文档
+│   └── 项目融合平台PRD_v1.6.md # 产品需求文档
+│
+└── README.md                 # 本文件
+```
+
+---
+
+## 7. 常见问题
+
+### Q1: 后端启动报错 "Database is not available"
+
+**原因:** PostgreSQL 未运行或连接配置错误  
+**解决:**
+- 检查 PostgreSQL 服务状态
+- 确认 `.env` 中 `DATABASE_URL` 正确
+- 或忽略该错误，后端会自动进入离线模式
+
+### Q2: 前端请求返回 401 Unauthorized
+
+**原因:** JWT Token 过期或缺失  
+**解决:** 重新登录获取新 Token，或检查请求头是否包含 `Authorization: Bearer xxx`
+
+### Q3: Prisma 迁移失败
+
+**原因:** 数据库连接问题或迁移文件冲突  
+**解决:**
+```bash
+# 重置迁移
+npx prisma migrate reset
+
+# 或手动同步数据库
+npx prisma db push
+```
+
+### Q4: 端口被占用
+
+```bash
+# 查找占用 3000/3001 的进程
+netstat -ano | findstr :3000
+
+# Windows 结束进程
+taskkill /F /PID <PID>
+
+# Linux/Mac 结束进程
+kill -9 <PID>
+```
+
+### Q5: 构建失败
+
+**前端:**
+```bash
+# 清除缓存后重试
+rm -rf node_modules package-lock.json
+npm install
+npm run build
+```
+
+**后端:**
+```bash
+# 确保 Prisma Client 已生成
+npx prisma generate
+npm run build
+```
+
+### Q6: 离线模式下数据不更新
+
+**原因:** 离线模式使用内存中的演示数据，不涉及数据库操作  
+**解决:** 如需持久化数据，需安装 PostgreSQL 并正常运行
+
+---
+
+## 附录
+
+### 默认登录账号
+
+| 用户名 | 密码 | 角色 |
+|--------|------|------|
+| admin | 123456 | 管理员 |
+
+### 技术文档
+
+- [API 接口文档](docs/API文档.md)
+- [产品需求文档](docs/项目融合平台PRD_v1.6.md)
+- [Swagger UI](http://localhost:3001/api-docs) (后端运行时)
+
+### 联系方式
+
+- 项目仓库: https://github.com/lurroyet-git/crm-ningxia
