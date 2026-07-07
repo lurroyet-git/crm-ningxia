@@ -9,7 +9,7 @@ import request from '../../utils/request';
 
 interface ReturnItem {
   id: string;
-  amount: string;
+  amount: number;
   plannedDate: string;
   actualDate: string | null;
   status: string;
@@ -75,12 +75,7 @@ export default function ProjectReturn() {
         request.get(`/projects/${selectedProject}/returns`),
         request.get(`/projects/${selectedProject}/returns/statistics`),
       ]);
-      const list = (returnsRes.list || []).map((r: any) => ({
-        ...r,
-        requiredDocs: typeof r.requiredDocs === 'string' ? JSON.parse(r.requiredDocs) : r.requiredDocs,
-        decisionChain: typeof r.decisionChain === 'string' ? JSON.parse(r.decisionChain) : r.decisionChain,
-      }));
-      setReturns(list);
+      setReturns(returnsRes.list || []);
       setStatistics(statsRes);
     } catch (e) {
     } finally {
@@ -99,14 +94,14 @@ export default function ProjectReturn() {
     form.setFieldsValue({
       ...ret,
       requiredDocs: ret.requiredDocs ? ret.requiredDocs.join(', ') : '',
-      decisionChain: ret.decisionChain,
+      decisionChain: ret.decisionChain ? ret.decisionChain.map((d: any) => `${d.role}-${d.name}-${d.status}`).join('\n') : '',
     });
     setIsModalOpen(true);
   };
 
   const handleDelete = async (id: string) => {
     try {
-      await request.delete(`/projects/${selectedProject}/returns/${id}`);
+      await request.delete(`/returns/${id}`);
       message.success('删除成功');
       fetchReturns();
     } catch (e) {
@@ -119,10 +114,13 @@ export default function ProjectReturn() {
       const data = {
         ...values,
         requiredDocs: values.requiredDocs ? values.requiredDocs.split(',').map((s: string) => s.trim()).filter(Boolean) : [],
-        decisionChain: values.decisionChain || [],
+        decisionChain: values.decisionChain ? values.decisionChain.split('\n').filter(Boolean).map((line: string) => {
+          const parts = line.split('-').map((s: string) => s.trim());
+          return { role: parts[0] || '', name: parts[1] || '', status: parts[2] || '待确认' };
+        }) : [],
       };
       if (editingReturn) {
-        await request.put(`/projects/${selectedProject}/returns/${editingReturn.id}`, data);
+        await request.put(`/returns/${editingReturn.id}`, data);
         message.success('更新成功');
       } else {
         await request.post(`/projects/${selectedProject}/returns`, { ...data, customerId: 'demo-customer' });
@@ -171,7 +169,7 @@ export default function ProjectReturn() {
   );
 
   const columns = [
-    { title: '回款金额', dataIndex: 'amount', key: 'amount', render: (v: string) => <span style={{ fontWeight: 600, color: '#1e3a5f' }}>¥{Number(v).toLocaleString()}</span> },
+    { title: '回款金额', dataIndex: 'amount', key: 'amount', render: (v: number) => <span style={{ fontWeight: 600, color: '#1e3a5f' }}>¥{(v || 0).toLocaleString()}</span> },
     { title: '计划回款日', dataIndex: 'plannedDate', key: 'plannedDate', width: 120 },
     { title: '实际回款日', dataIndex: 'actualDate', key: 'actualDate', width: 120, render: (v: string | null) => v || <span style={{ color: '#9ca3af' }}>-</span> },
     {
@@ -318,6 +316,9 @@ export default function ProjectReturn() {
           </Form.Item>
           <Form.Item name="requiredDocs" label="所需资料">
             <Input placeholder="多个资料用逗号分隔，例如：合同,验收单,发票" />
+          </Form.Item>
+          <Form.Item name="decisionChain" label="决策链审批人">
+            <Input.TextArea rows={3} placeholder="每行一条，格式：角色-姓名-状态，例如：财务总监-张某-已审批" />
           </Form.Item>
           <Form.Item name="remark" label="备注">
             <Input.TextArea rows={2} placeholder="请输入备注" />

@@ -29,6 +29,7 @@ interface ProjectOption {
 const TYPE_COLOR: Record<string, string> = {
   '过程复盘': '#3b82f6',
   '验收复盘': '#10b981',
+  '其他': '#6b7280',
 };
 
 export default function ProjectReview() {
@@ -74,27 +75,14 @@ export default function ProjectReview() {
     setLoading(true);
     try {
       const res = await request.get(`/projects/${selectedProject}/reviews`, { params: { type: filterType || undefined } });
-      const list = (res.list || []).map((r: any) => ({
-        ...r,
-        problems: parseJson(r.problems),
-        experiences: parseJson(r.experiences),
-        improvements: parseJson(r.improvements),
-        deliverables: parseJson(r.deliverables),
-      }));
-      setReviews(list);
+      setReviews(res.list || []);
     } catch (e) {
     } finally {
       setLoading(false);
     }
   };
 
-  const parseJson = (v: any) => {
-    if (!v) return [];
-    if (typeof v === 'string') {
-      try { return JSON.parse(v); } catch { return []; }
-    }
-    return v;
-  };
+
 
   const handleAdd = () => {
     setEditingReview(null);
@@ -121,7 +109,7 @@ export default function ProjectReview() {
 
   const handleDelete = async (id: string) => {
     try {
-      await request.delete(`/projects/${selectedProject}/reviews/${id}`);
+      await request.delete(`/reviews/${id}`);
       message.success('删除成功');
       fetchReviews();
     } catch (e) {
@@ -151,7 +139,7 @@ export default function ProjectReview() {
         }) : [],
       };
       if (editingReview) {
-        await request.put(`/projects/${selectedProject}/reviews/${editingReview.id}`, data);
+        await request.put(`/reviews/${editingReview.id}`, data);
         message.success('更新成功');
       } else {
         await request.post(`/projects/${selectedProject}/reviews`, data);
@@ -220,6 +208,7 @@ export default function ProjectReview() {
             <Select placeholder="复盘类型" style={{ width: 120 }} value={filterType || undefined} onChange={setFilterType} allowClear>
               <Select.Option value="过程复盘">过程复盘</Select.Option>
               <Select.Option value="验收复盘">验收复盘</Select.Option>
+              <Select.Option value="其他">其他</Select.Option>
             </Select>
           </div>
           <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>新增复盘</Button>
@@ -346,6 +335,7 @@ export default function ProjectReview() {
                 <Select placeholder="请选择">
                   <Select.Option value="过程复盘">过程复盘</Select.Option>
                   <Select.Option value="验收复盘">验收复盘</Select.Option>
+                  <Select.Option value="其他">其他</Select.Option>
                 </Select>
               </Form.Item>
             </Col>

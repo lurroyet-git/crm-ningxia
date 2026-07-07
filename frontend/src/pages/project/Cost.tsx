@@ -11,7 +11,7 @@ interface CostItem {
   id: string;
   type: string;
   category: string;
-  amount: string;
+  amount: number;
   description: string;
   vendor: string;
   invoiceNo: string;
@@ -25,9 +25,9 @@ interface ProjectOption {
 }
 
 const STATUS_COLOR: Record<string, string> = {
-  '已录入': '#3b82f6',
-  '已审批': '#f59e0b',
-  '已支付': '#10b981',
+  '已确认': '#10b981',
+  '待确认': '#f59e0b',
+  '已取消': '#9ca3af',
 };
 
 const TYPE_COLOR: Record<string, string> = {
@@ -105,7 +105,7 @@ export default function ProjectCost() {
 
   const handleDelete = async (id: string) => {
     try {
-      await request.delete(`/projects/${selectedProject}/costs/${id}`);
+      await request.delete(`/costs/${id}`);
       message.success('删除成功');
       fetchCosts();
     } catch (e) {
@@ -116,7 +116,7 @@ export default function ProjectCost() {
     try {
       const values = await form.validateFields();
       if (editingCost) {
-        await request.put(`/projects/${selectedProject}/costs/${editingCost.id}`, values);
+        await request.put(`/costs/${editingCost.id}`, values);
         message.success('更新成功');
       } else {
         await request.post(`/projects/${selectedProject}/costs`, values);
@@ -245,11 +245,11 @@ export default function ProjectCost() {
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="status" label="状态" rules={[{ required: true }]} initialValue="已录入">
+              <Form.Item name="status" label="状态" rules={[{ required: true }]} initialValue="待确认">
                 <Select>
-                  <Select.Option value="已录入">已录入</Select.Option>
-                  <Select.Option value="已审批">已审批</Select.Option>
-                  <Select.Option value="已支付">已支付</Select.Option>
+                  <Select.Option value="已确认">已确认</Select.Option>
+                  <Select.Option value="待确认">待确认</Select.Option>
+                  <Select.Option value="已取消">已取消</Select.Option>
                 </Select>
               </Form.Item>
             </Col>

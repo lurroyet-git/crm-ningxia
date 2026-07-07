@@ -445,7 +445,7 @@ export class ProjectsService {
     try {
       const where: any = { projectId };
       if (type) where.type = type;
-      const list = await (this.prisma as any).projectCost.findMany({
+      const list = await this.prisma.projectCost.findMany({
         where,
         orderBy: { createdAt: 'desc' },
       });
@@ -454,11 +454,11 @@ export class ProjectsService {
       this.logger.error('findCosts failed', error);
       // 离线模式演示数据
       const demoCosts = [
-        { id: 'cost-1', projectId, type: '采购', category: '服务器设备', amount: '85000', description: 'Dell R740 服务器 2 台', vendor: '某某科技', invoiceNo: 'INV-2024-001', date: '2024-03-15', status: '已支付', createdAt: new Date('2024-03-15') },
-        { id: 'cost-2', projectId, type: '施工', category: '机房布线', amount: '32000', description: '机房综合布线及弱电工程', vendor: '某某工程', invoiceNo: 'INV-2024-002', date: '2024-03-20', status: '已支付', createdAt: new Date('2024-03-20') },
-        { id: 'cost-3', projectId, type: '差旅', category: '现场实施', amount: '5600', description: '实施工程师现场差旅 3 人×5 天', vendor: null, invoiceNo: null, date: '2024-04-01', status: '已审批', createdAt: new Date('2024-04-01') },
-        { id: 'cost-4', projectId, type: '采购', category: '网络设备', amount: '42000', description: '交换机、防火墙及配件', vendor: '某某网络', invoiceNo: 'INV-2024-003', date: '2024-04-10', status: '已录入', createdAt: new Date('2024-04-10') },
-        { id: 'cost-5', projectId, type: '人工', category: '开发人员', amount: '120000', description: '3 月开发人力成本', vendor: null, invoiceNo: null, date: '2024-03-31', status: '已支付', createdAt: new Date('2024-03-31') },
+        { id: 'cost-1', projectId, type: '采购', category: '服务器设备', amount: 85000, description: 'Dell R740 服务器 2 台', vendor: '某某科技', invoiceNo: 'INV-2024-001', date: '2024-03-15', status: '已确认', createdAt: new Date('2024-03-15') },
+        { id: 'cost-2', projectId, type: '施工', category: '机房布线', amount: 32000, description: '机房综合布线及弱电工程', vendor: '某某工程', invoiceNo: 'INV-2024-002', date: '2024-03-20', status: '已确认', createdAt: new Date('2024-03-20') },
+        { id: 'cost-3', projectId, type: '差旅', category: '现场实施', amount: 5600, description: '实施工程师现场差旅 3 人×5 天', vendor: null, invoiceNo: null, date: '2024-04-01', status: '待确认', createdAt: new Date('2024-04-01') },
+        { id: 'cost-4', projectId, type: '采购', category: '网络设备', amount: 42000, description: '交换机、防火墙及配件', vendor: '某某网络', invoiceNo: 'INV-2024-003', date: '2024-04-10', status: '已取消', createdAt: new Date('2024-04-10') },
+        { id: 'cost-5', projectId, type: '人工', category: '开发人员', amount: 120000, description: '3 月开发人力成本', vendor: null, invoiceNo: null, date: '2024-03-31', status: '已确认', createdAt: new Date('2024-03-31') },
       ];
       if (type) return { list: demoCosts.filter(c => c.type === type), projectId };
       return { list: demoCosts, projectId };
@@ -467,7 +467,7 @@ export class ProjectsService {
 
   async costStatistics(projectId: string) {
     try {
-      const costs = await (this.prisma as any).projectCost.findMany({ where: { projectId } });
+      const costs = await this.prisma.projectCost.findMany({ where: { projectId } });
       const total = costs.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
       const byType = costs.reduce((acc, c) => {
         acc[c.type] = (acc[c.type] || 0) + (Number(c.amount) || 0);
@@ -487,12 +487,11 @@ export class ProjectsService {
 
   async createCost(projectId: string, dto: any) {
     try {
-      return await (this.prisma as any).projectCost.create({
+      return await this.prisma.projectCost.create({
         data: {
           projectId,
           ...dto,
           date: dto.date ? new Date(dto.date) : null,
-          amount: String(dto.amount),
         },
       });
     } catch (error) {
@@ -505,8 +504,7 @@ export class ProjectsService {
     try {
       const data: any = { ...dto };
       if (dto.date) data.date = new Date(dto.date);
-      if (dto.amount) data.amount = String(dto.amount);
-      return await (this.prisma as any).projectCost.update({ where: { id }, data });
+      return await this.prisma.projectCost.update({ where: { id }, data });
     } catch (error) {
       this.logger.error('updateCost failed', error);
       return { id, ...dto };
@@ -515,7 +513,7 @@ export class ProjectsService {
 
   async removeCost(id: string) {
     try {
-      return await (this.prisma as any).projectCost.delete({ where: { id } });
+      return await this.prisma.projectCost.delete({ where: { id } });
     } catch (error) {
       this.logger.error('removeCost failed', error);
       return { id, deleted: true };
@@ -525,7 +523,7 @@ export class ProjectsService {
   // ==================== 项目回款管理 ====================
   async findReturns(projectId: string) {
     try {
-      const list = await (this.prisma as any).projectReturn.findMany({
+      const list = await this.prisma.projectReturn.findMany({
         where: { projectId },
         orderBy: { plannedDate: 'asc' },
       });
@@ -534,9 +532,9 @@ export class ProjectsService {
       this.logger.error('findReturns failed', error);
       return {
         list: [
-          { id: 'ret-1', projectId, customerId: 'c-1', amount: '150000', plannedDate: '2024-03-30', actualDate: '2024-03-28', status: '已回款', progress: 100, requiredDocs: JSON.stringify(['合同', '验收单', '发票']), decisionChain: JSON.stringify([{ role: '财务总监', name: '张某', status: '已审批' }, { role: '总经理', name: '李某', status: '已审批' }]), remark: '首付款已到账', createdAt: new Date('2024-03-28') },
-          { id: 'ret-2', projectId, customerId: 'c-1', amount: '200000', plannedDate: '2024-06-30', actualDate: null, status: '待回款', progress: 0, requiredDocs: JSON.stringify(['初验报告', '进度确认单']), decisionChain: JSON.stringify([{ role: '项目经理', name: '王某', status: '待确认' }, { role: '财务总监', name: '张某', status: '待审批' }]), remark: '初验后支付', createdAt: new Date('2024-04-01') },
-          { id: 'ret-3', projectId, customerId: 'c-1', amount: '150000', plannedDate: '2024-09-30', actualDate: null, status: '待回款', progress: 0, requiredDocs: JSON.stringify(['终验报告', '培训签到表', '质保承诺书']), decisionChain: JSON.stringify([{ role: '使用部门', name: '赵某', status: '待确认' }, { role: '信息中心', name: '孙某', status: '待确认' }, { role: '财务总监', name: '张某', status: '待审批' }]), remark: '终验后支付', createdAt: new Date('2024-04-01') },
+          { id: 'ret-1', projectId, customerId: 'c-1', amount: 150000, plannedDate: '2024-03-30', actualDate: '2024-03-28', status: '已回款', progress: 100, requiredDocs: ['合同', '验收单', '发票'], decisionChain: [{ role: '财务总监', name: '张某', status: '已审批' }, { role: '总经理', name: '李某', status: '已审批' }], remark: '首付款已到账', createdAt: new Date('2024-03-28') },
+          { id: 'ret-2', projectId, customerId: 'c-1', amount: 200000, plannedDate: '2024-06-30', actualDate: null, status: '待回款', progress: 0, requiredDocs: ['初验报告', '进度确认单'], decisionChain: [{ role: '项目经理', name: '王某', status: '待确认' }, { role: '财务总监', name: '张某', status: '待审批' }], remark: '初验后支付', createdAt: new Date('2024-04-01') },
+          { id: 'ret-3', projectId, customerId: 'c-1', amount: 150000, plannedDate: '2024-09-30', actualDate: null, status: '待回款', progress: 0, requiredDocs: ['终验报告', '培训签到表', '质保承诺书'], decisionChain: [{ role: '使用部门', name: '赵某', status: '待确认' }, { role: '信息中心', name: '孙某', status: '待确认' }, { role: '财务总监', name: '张某', status: '待审批' }], remark: '终验后支付', createdAt: new Date('2024-04-01') },
         ],
         projectId,
       };
@@ -545,7 +543,7 @@ export class ProjectsService {
 
   async returnStatistics(projectId: string) {
     try {
-      const returns = await (this.prisma as any).projectReturn.findMany({ where: { projectId } });
+      const returns = await this.prisma.projectReturn.findMany({ where: { projectId } });
       const total = returns.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
       const received = returns.filter(r => r.status === '已回款').reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
       const pending = returns.filter(r => r.status === '待回款' || r.status === '部分回款').reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
@@ -558,15 +556,12 @@ export class ProjectsService {
 
   async createReturn(projectId: string, dto: any) {
     try {
-      return await (this.prisma as any).projectReturn.create({
+      return await this.prisma.projectReturn.create({
         data: {
           projectId,
           ...dto,
           plannedDate: dto.plannedDate ? new Date(dto.plannedDate) : null,
           actualDate: dto.actualDate ? new Date(dto.actualDate) : null,
-          amount: String(dto.amount),
-          requiredDocs: dto.requiredDocs ? JSON.stringify(dto.requiredDocs) : null,
-          decisionChain: dto.decisionChain ? JSON.stringify(dto.decisionChain) : null,
         },
       });
     } catch (error) {
@@ -580,10 +575,7 @@ export class ProjectsService {
       const data: any = { ...dto };
       if (dto.plannedDate) data.plannedDate = new Date(dto.plannedDate);
       if (dto.actualDate) data.actualDate = new Date(dto.actualDate);
-      if (dto.amount) data.amount = String(dto.amount);
-      if (dto.requiredDocs) data.requiredDocs = JSON.stringify(dto.requiredDocs);
-      if (dto.decisionChain) data.decisionChain = JSON.stringify(dto.decisionChain);
-      return await (this.prisma as any).projectReturn.update({ where: { id }, data });
+      return await this.prisma.projectReturn.update({ where: { id }, data });
     } catch (error) {
       this.logger.error('updateReturn failed', error);
       return { id, ...dto };
@@ -592,7 +584,7 @@ export class ProjectsService {
 
   async removeReturn(id: string) {
     try {
-      return await (this.prisma as any).projectReturn.delete({ where: { id } });
+      return await this.prisma.projectReturn.delete({ where: { id } });
     } catch (error) {
       this.logger.error('removeReturn failed', error);
       return { id, deleted: true };
@@ -604,7 +596,7 @@ export class ProjectsService {
     try {
       const where: any = { projectId };
       if (type) where.type = type;
-      const list = await (this.prisma as any).projectReview.findMany({
+      const list = await this.prisma.projectReview.findMany({
         where,
         orderBy: { reviewedAt: 'desc' },
       });
@@ -612,8 +604,8 @@ export class ProjectsService {
     } catch (error) {
       this.logger.error('findReviews failed', error);
       const demoReviews = [
-        { id: 'rev-1', projectId, type: '验收复盘', stage: '验收阶段', summary: '项目整体交付顺利，客户满意度较高，但培训环节存在不足，部分功能需后续优化。', problems: JSON.stringify([{ issue: '培训时间安排紧张', severity: '中' }, { issue: '部分功能文档不完善', severity: '低' }]), experiences: JSON.stringify([{ item: '提前与客户确认培训人员清单', value: '高' }, { item: '功能文档与开发同步输出', value: '高' }]), improvements: JSON.stringify([{ item: '增加培训预演环节', owner: '培训负责人' }, { item: '建立文档评审机制', owner: '项目经理' }]), deliverables: JSON.stringify([{ name: '培训材料模板', type: '文档' }, { name: '验收检查清单', type: '工具' }]), score: 85, reviewedBy: '项目经理', reviewedAt: new Date('2024-06-15'), createdAt: new Date('2024-06-15') },
-        { id: 'rev-2', projectId, type: '过程复盘', stage: '实施阶段', summary: '需求变更频繁导致进度延期，需加强需求管控和变更审批流程。', problems: JSON.stringify([{ issue: '需求变更 5 次，影响工期 2 周', severity: '高' }, { issue: '客户干系人沟通不及时', severity: '中' }]), experiences: JSON.stringify([{ item: '需求变更必须走正式审批', value: '高' }, { item: '每周与客户确认需求范围', value: '高' }]), improvements: JSON.stringify([{ item: '建立需求变更影响评估模板', owner: '产品经理' }, { item: '设置客户沟通日历', owner: '客户经理' }]), deliverables: JSON.stringify([{ name: '需求变更影响评估模板', type: '模板' }]), score: 72, reviewedBy: '项目经理', reviewedAt: new Date('2024-05-20'), createdAt: new Date('2024-05-20') },
+        { id: 'rev-1', projectId, type: '验收复盘', stage: '验收阶段', summary: '项目整体交付顺利，客户满意度较高，但培训环节存在不足，部分功能需后续优化。', problems: [{ issue: '培训时间安排紧张', severity: '中' }, { issue: '部分功能文档不完善', severity: '低' }], experiences: [{ item: '提前与客户确认培训人员清单', value: '高' }, { item: '功能文档与开发同步输出', value: '高' }], improvements: [{ item: '增加培训预演环节', owner: '培训负责人' }, { item: '建立文档评审机制', owner: '项目经理' }], deliverables: [{ name: '培训材料模板', type: '文档' }, { name: '验收检查清单', type: '工具' }], score: 85, reviewedBy: '项目经理', reviewedAt: new Date('2024-06-15'), createdAt: new Date('2024-06-15') },
+        { id: 'rev-2', projectId, type: '过程复盘', stage: '实施阶段', summary: '需求变更频繁导致进度延期，需加强需求管控和变更审批流程。', problems: [{ issue: '需求变更 5 次，影响工期 2 周', severity: '高' }, { issue: '客户干系人沟通不及时', severity: '中' }], experiences: [{ item: '需求变更必须走正式审批', value: '高' }, { item: '每周与客户确认需求范围', value: '高' }], improvements: [{ item: '建立需求变更影响评估模板', owner: '产品经理' }, { item: '设置客户沟通日历', owner: '客户经理' }], deliverables: [{ name: '需求变更影响评估模板', type: '模板' }], score: 72, reviewedBy: '项目经理', reviewedAt: new Date('2024-05-20'), createdAt: new Date('2024-05-20') },
       ];
       if (type) return { list: demoReviews.filter(r => r.type === type), projectId };
       return { list: demoReviews, projectId };
@@ -622,14 +614,10 @@ export class ProjectsService {
 
   async createReview(projectId: string, dto: any) {
     try {
-      return await (this.prisma as any).projectReview.create({
+      return await this.prisma.projectReview.create({
         data: {
           projectId,
           ...dto,
-          problems: dto.problems ? JSON.stringify(dto.problems) : null,
-          experiences: dto.experiences ? JSON.stringify(dto.experiences) : null,
-          improvements: dto.improvements ? JSON.stringify(dto.improvements) : null,
-          deliverables: dto.deliverables ? JSON.stringify(dto.deliverables) : null,
           reviewedAt: dto.reviewedAt ? new Date(dto.reviewedAt) : new Date(),
         },
       });
@@ -642,12 +630,8 @@ export class ProjectsService {
   async updateReview(id: string, dto: any) {
     try {
       const data: any = { ...dto };
-      if (dto.problems) data.problems = JSON.stringify(dto.problems);
-      if (dto.experiences) data.experiences = JSON.stringify(dto.experiences);
-      if (dto.improvements) data.improvements = JSON.stringify(dto.improvements);
-      if (dto.deliverables) data.deliverables = JSON.stringify(dto.deliverables);
       if (dto.reviewedAt) data.reviewedAt = new Date(dto.reviewedAt);
-      return await (this.prisma as any).projectReview.update({ where: { id }, data });
+      return await this.prisma.projectReview.update({ where: { id }, data });
     } catch (error) {
       this.logger.error('updateReview failed', error);
       return { id, ...dto };
@@ -656,7 +640,7 @@ export class ProjectsService {
 
   async removeReview(id: string) {
     try {
-      return await (this.prisma as any).projectReview.delete({ where: { id } });
+      return await this.prisma.projectReview.delete({ where: { id } });
     } catch (error) {
       this.logger.error('removeReview failed', error);
       return { id, deleted: true };

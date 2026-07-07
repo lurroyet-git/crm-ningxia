@@ -443,12 +443,12 @@ model ProjectCost {
   projectId   String   @map("project_id")
   type        String   @db.VarChar(20) // 采购/施工/差旅/人工/其他
   category    String   @db.VarChar(50) // 具体分类
-  amount      String   @db.VarChar(20) // 金额
+  amount      Decimal  @db.Decimal(10, 2) // 金额
   description String?  @db.Text
   vendor      String?  @db.VarChar(100) // 供应商
   invoiceNo   String?  @map("invoice_no") @db.VarChar(50)
   date        DateTime? @map("date")
-  status      String   @default("已录入") @db.VarChar(20) // 已录入/已审批/已支付
+  status      String   @default("待确认") @db.VarChar(20) // 已确认/待确认/已取消
   createdBy   String   @map("created_by")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
@@ -461,13 +461,13 @@ model ProjectReturn {
   id            String   @id @default(uuid())
   projectId     String   @map("project_id")
   customerId    String   @map("customer_id")
-  amount        String   @db.VarChar(20) // 回款金额
+  amount        Decimal  @db.Decimal(10, 2) // 回款金额
   plannedDate   DateTime? @map("planned_date")
   actualDate    DateTime? @map("actual_date")
   status        String   @default("待回款") @db.VarChar(20) // 待回款/部分回款/已回款/逾期
   progress      Int      @default(0) // 0-100
-  requiredDocs  String?  @map("required_docs") @db.Text // 需要的资料 JSON
-  decisionChain String? @map("decision_chain") @db.Text // 决策链 JSON
+  requiredDocs  Json?    @map("required_docs") // 需要的资料 JSON
+  decisionChain Json?    @map("decision_chain") // 决策链 JSON
   remark        String?  @db.Text
   createdBy     String   @map("created_by")
   createdAt     DateTime @default(now()) @map("created_at")
@@ -480,18 +480,19 @@ model ProjectReturn {
 model ProjectReview {
   id            String   @id @default(uuid())
   projectId     String   @map("project_id")
-  type          String   @db.VarChar(20) // 过程复盘/验收复盘
+  type          String   @db.VarChar(20) // 验收复盘/过程复盘/其他
   stage         String?  @db.VarChar(20) // 需求阶段/实施阶段/验收阶段
   summary       String?  @db.Text // 总体总结
-  problems      String?  @db.Text // 问题清单 JSON
-  experiences   String?  @db.Text // 经验沉淀 JSON
-  improvements  String?  @db.Text // 改进建议 JSON
-  deliverables  String?  @db.Text // 可复用交付物 JSON
+  problems      Json?    // 问题清单 JSON
+  experiences   Json?    // 经验沉淀 JSON
+  improvements  Json?    // 改进建议 JSON
+  deliverables  Json?    // 可复用交付物 JSON
   score         Int?     // 综合评分 0-100
   reviewedBy    String   @map("reviewed_by")
   reviewedAt    DateTime @map("reviewed_at")
   createdBy     String   @map("created_by")
   createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   @@map("project_reviews")
 }
