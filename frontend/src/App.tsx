@@ -15,6 +15,9 @@ const ProjectOverview = React.lazy(() => import('./pages/project/Overview'));
 const ProjectNodes = React.lazy(() => import('./pages/project/Nodes'));
 const ProjectMeeting = React.lazy(() => import('./pages/project/Meeting'));
 const ProjectKanban = React.lazy(() => import('./pages/project/Kanban'));
+const ProjectCost = React.lazy(() => import('./pages/project/Cost'));
+const ProjectReturn = React.lazy(() => import('./pages/project/Return'));
+const ProjectReview = React.lazy(() => import('./pages/project/Review'));
 
 const CustomerAssets = React.lazy(() => import('./pages/customer/Assets'));
 const CustomerMap = React.lazy(() => import('./pages/customer/Map'));
@@ -64,6 +67,9 @@ export default function App() {
             <Route path="project/nodes" element={<ProjectNodes />} />
             <Route path="project/meeting" element={<ProjectMeeting />} />
             <Route path="project/kanban" element={<ProjectKanban />} />
+            <Route path="project/cost" element={<ProjectCost />} />
+            <Route path="project/return" element={<ProjectReturn />} />
+            <Route path="project/review" element={<ProjectReview />} />
 
             {/* 客户资产 */}
             <Route path="customer/assets" element={<CustomerAssets />} />

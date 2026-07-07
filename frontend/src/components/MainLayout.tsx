@@ -41,6 +41,9 @@ const menuItems = [
       { key: '/project/nodes', label: '项目节点' },
       { key: '/project/meeting', label: '会议管理' },
       { key: '/project/kanban', label: '交付看板' },
+      { key: '/project/cost', label: '成本管理' },
+      { key: '/project/return', label: '回款管理' },
+      { key: '/project/review', label: '项目复盘' },
     ],
   },
   {

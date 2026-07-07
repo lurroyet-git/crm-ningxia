@@ -315,7 +315,10 @@ MVP 阶段不做以下能力：
 ├─ 项目概览
 ├─ 项目节点
 ├─ 会议管理
-└─ 交付看板
+├─ 交付看板
+├─ 成本管理
+├─ 回款管理
+└─ 项目复盘
 
 运维管理
 ├─ 运维记录
@@ -476,6 +479,9 @@ MVP 阶段不做以下能力：
 - 上传交付物。
 - 发起项目复盘。
 - 从项目复盘生成知识条目。
+- **成本管理**：登记项目各类费用（采购、施工、差旅、人工），按类型和状态统计，支持发票号和供应商记录，便于财务核算和项目损益分析。
+- **回款管理**：跟踪客户回款计划与实际到账，记录回款金额、计划日期、实际日期、回款状态、所需资料清单和决策链审批人，支持回款进度追踪和逾期预警。
+- **项目复盘管理**：记录验收复盘和过程复盘，沉淀问题清单（含严重程度）、经验总结、改进建议、可复用交付物，支持评分和复盘人记录，形成项目知识资产。
 
 ### 8.4 客户详情页
 
@@ -1343,7 +1349,61 @@ priority_score =
 | reason | TEXT | 原因 |
 | created_at | DATETIME | 操作时间 |
 
----
+### 12.26 project_cost
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| cost_id | UUID | 主键 |
+| project_id | UUID | 所属项目 |
+| type | ENUM | 费用类型：采购/施工/差旅/人工/其他 |
+| category | VARCHAR | 费用分类（如硬件采购、软件许可、交通费、住宿费等） |
+| amount | DECIMAL(10,2) | 金额 |
+| description | TEXT | 费用说明 |
+| vendor | VARCHAR | 供应商/服务商 |
+| invoice_no | VARCHAR | 发票号 |
+| date | DATE | 发生日期 |
+| status | ENUM | 状态：已确认/待确认/已取消 |
+| created_by | UUID | 创建人 |
+| created_at | DATETIME | 创建时间 |
+| updated_at | DATETIME | 更新时间 |
+
+### 12.27 project_return
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| return_id | UUID | 主键 |
+| project_id | UUID | 所属项目 |
+| customer_id | UUID | 客户 |
+| amount | DECIMAL(10,2) | 回款金额 |
+| planned_date | DATE | 计划回款日期 |
+| actual_date | DATE | 实际回款日期 |
+| status | ENUM | 状态：待回款/部分回款/已回款/逾期 |
+| progress | INT | 回款进度百分比 |
+| required_docs | JSON | 所需资料清单（如发票、验收单、合同等） |
+| decision_chain | JSON | 决策链审批人信息 |
+| remark | TEXT | 备注 |
+| created_by | UUID | 创建人 |
+| created_at | DATETIME | 创建时间 |
+| updated_at | DATETIME | 更新时间 |
+
+### 12.28 project_review
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| review_id | UUID | 主键 |
+| project_id | UUID | 所属项目 |
+| type | ENUM | 复盘类型：验收复盘/过程复盘/其他 |
+| stage | VARCHAR | 复盘阶段（如验收阶段、实施阶段、测试阶段等） |
+| summary | TEXT | 总体总结 |
+| problems | JSON | 问题清单（含 issue 描述和严重程度） |
+| experiences | JSON | 经验沉淀（含 item 描述和价值等级） |
+| improvements | JSON | 改进建议（含 item 描述和责任人） |
+| deliverables | JSON | 可复用交付物（含名称和类型） |
+| score | INT | 复盘评分（0-100） |
+| reviewed_by | VARCHAR | 复盘人 |
+| reviewed_at | DATETIME | 复盘时间 |
+| created_by | UUID | 创建人 |
+| created_at | DATETIME | 创建时间 |
 
 ## 13. 客户风险标签
 
@@ -2386,6 +2446,94 @@ How：
 - [ ] 关系链缺口已进入待补充提醒。
 - [ ] 客户交接时权力地图、客户树和协作任务已确认。
 
+### SOP-12：项目成本管理流程
+
+| Field | Value |
+|---|---|
+| Owner | 项目经理/财务人员 |
+| Participants | 采购负责人、项目经理、财务审核 |
+| Trigger | 项目采购发生、施工费用产生、差旅报销、人工费用结算 |
+| Frequency | 费用发生时即时登记，月度汇总核对 |
+
+#### Purpose
+
+把项目各类费用（采购、施工、差旅、人工）从微信群和 Excel 表格中收敛到系统，实现项目成本实时可见、分类统计和损益分析。
+
+#### Procedure
+
+1. 项目经理或财务人员在「成本管理」页面选择项目，点击「新增费用」。
+2. 填写费用类型（采购/施工/差旅/人工）、分类、金额、供应商、发票号和发生日期。
+3. 提交后系统自动按类型汇总，展示成本总额、按类型分布和费用记录列表。
+4. 财务人员定期核对发票与系统记录，确认状态后标记「已确认」。
+5. 项目结束时导出成本明细，用于项目损益核算。
+
+#### Checklist Summary
+
+- [ ] 费用发生时 24 小时内已登记系统。
+- [ ] 费用类型、金额、供应商和发票号已完整填写。
+- [ ] 财务人员已核对发票与系统记录。
+- [ ] 月度成本汇总已导出并归档。
+
+### SOP-13：项目回款管理流程
+
+| Field | Value |
+|---|---|
+| Owner | 客户经理/项目经理 |
+| Participants | 财务、法务、客户侧决策人、客户侧执行人 |
+| Trigger | 合同签订后按付款节点、验收完成后、年度续约/扩容 |
+| Frequency | 按合同付款节点追踪，逾期时每日跟进 |
+
+#### Purpose
+
+确保客户回款按计划执行，提前预警逾期风险，记录回款所需资料和决策链审批人，降低回款周期和坏账风险。
+
+#### Procedure
+
+1. 客户经理在「回款管理」页面按合同付款节点创建回款计划，填写金额、计划日期和所需资料清单。
+2. 记录客户侧决策链（决策人、执行人、审批流程），便于跟进时找到关键人。
+3. 实际回款到账后，更新实际日期、金额和状态（已回款/部分回款）。
+4. 系统根据计划日期自动计算进度和逾期状态，逾期时提醒客户经理和主管。
+5. 回款完成后，客户经理确认资料齐全并归档。
+
+#### Checklist Summary
+
+- [ ] 合同付款节点已拆解为回款计划。
+- [ ] 客户侧决策链和审批人已记录。
+- [ ] 所需资料清单已准备并核对。
+- [ ] 逾期回款已进入每日跟进清单。
+- [ ] 回款完成后资料已归档。
+
+### SOP-14：项目复盘管理流程
+
+| Field | Value |
+|---|---|
+| Owner | 项目经理 |
+| Participants | 项目成员、客户经理、运维负责人、培训负责人 |
+| Trigger | 项目验收后、阶段性里程碑完成、重大风险/变更发生后 |
+| Frequency | 每个项目至少验收复盘一次；复杂项目增加过程复盘 |
+
+#### Purpose
+
+把项目交付中的问题、经验、改进建议和可复用交付物沉淀为组织知识资产，避免重复踩坑，提升后续项目交付效率。
+
+#### Procedure
+
+1. 项目经理在「项目复盘」页面创建复盘记录，选择复盘类型（验收复盘/过程复盘）和阶段。
+2. 填写总体总结，从项目交付全流程中提炼问题清单（含严重程度）。
+3. 记录经验沉淀（高价值做法）和改进建议（含责任人）。
+4. 梳理可复用交付物（模板、工具、文档），并标注类型和适用场景。
+5. 填写复盘评分（0-100）和复盘人，复盘时间自动记录。
+6. 复盘完成后，将可复用交付物同步到知识库，将改进建议纳入下一个项目或流程优化。
+
+#### Checklist Summary
+
+- [ ] 项目已按类型完成复盘（验收复盘/过程复盘）。
+- [ ] 问题清单已记录并标注严重程度。
+- [ ] 高价值经验已沉淀并可检索。
+- [ ] 改进建议已明确责任人并纳入跟踪。
+- [ ] 可复用交付物已同步到知识库。
+- [ ] 复盘评分和复盘人已记录。
+
 ---
 
 ## 22. 外部参考
@@ -2689,6 +2837,37 @@ POST /api/v1/projects
 | 移动任务 | PUT | /tasks/{id}/move | 移动任务到不同列 |
 | 更新排序 | PUT | /tasks/reorder | 批量更新排序 |
 
+#### 24.3.5 成本管理
+
+| 接口 | 方法 | 路径 | 说明 |
+|------|------|------|------|
+| 成本列表 | GET | /projects/{id}/costs | 获取项目费用列表 |
+| 成本统计 | GET | /projects/{id}/costs/statistics | 获取项目成本统计 |
+| 新建成本 | POST | /projects/{id}/costs | 登记费用 |
+| 更新成本 | PUT | /costs/{id} | 更新费用记录 |
+| 删除成本 | DELETE | /costs/{id} | 删除费用记录 |
+
+#### 24.3.6 回款管理
+
+| 接口 | 方法 | 路径 | 说明 |
+|------|------|------|------|
+| 回款列表 | GET | /projects/{id}/returns | 获取项目回款列表 |
+| 回款统计 | GET | /projects/{id}/returns/statistics | 获取回款统计 |
+| 新建回款 | POST | /projects/{id}/returns | 创建回款计划 |
+| 更新回款 | PUT | /returns/{id} | 更新回款记录 |
+| 删除回款 | DELETE | /returns/{id} | 删除回款记录 |
+
+#### 24.3.7 项目复盘
+
+| 接口 | 方法 | 路径 | 说明 |
+|------|------|------|------|
+| 复盘列表 | GET | /projects/{id}/reviews | 获取项目复盘列表 |
+| 新建复盘 | POST | /projects/{id}/reviews | 创建复盘记录 |
+| 更新复盘 | PUT | /reviews/{id} | 更新复盘记录 |
+| 删除复盘 | DELETE | /reviews/{id} | 删除复盘记录 |
+
+### 24.4 其他模块 API（简要）
+
 ### 24.4 其他模块 API（简要）
 
 | 模块 | 核心接口 | 说明 |
@@ -2712,18 +2891,18 @@ POST /api/v1/projects
 
 ### 25.1 页面总览
 
-Demo 共包含 23 个 HTML 页面，覆盖 6 个业务模块：
+Demo 共包含 26 个 HTML 页面，覆盖 6 个业务模块：
 
 | 模块 | 页面数 | 文件列表 |
 |------|--------|----------|
 | 作战台 | 4 | cockpit.html, cockpit_report.html, cockpit_export.html, cockpit_team.html |
-| 项目交付 | 4 | project_delivery.html, project_nodes.html, project_meeting.html, project_kanban.html |
+| 项目交付 | 7 | project_delivery.html, project_nodes.html, project_meeting.html, project_kanban.html, project_cost.html, project_return.html, project_review.html |
 | 运维管理 | 6 | ops_records.html, ops_inspection_plan.html, ops_inspection_log.html, ops_assets.html, ops_knowledge.html, ops_rules.html |
 | 商机营销 | 3 | biz_pool.html, biz_follow.html, biz_visit.html |
 | 客户资产 | 3 | customer_assets.html, customer_map.html, customer_network.html |
 | 知识分享 | 2 | knowledge_share.html, knowledge_material.html |
 | 模板 | 1 | _template.html |
-| **合计** | **23** | - |
+| **合计** | **26** | - |
 
 ### 25.2 页面交互功能矩阵
 
@@ -2744,6 +2923,11 @@ Demo 共包含 23 个 HTML 页面，覆盖 6 个业务模块：
 | **project_nodes.html** | ① 节点行双击展开/收起详情 ② 添加节点 → Modal 表单 ③ 状态标签点击循环切换 ④ 行点击 → 详情 Modal ⑤ 搜索功能 | Modal, Toast, FormValidator |
 | **project_meeting.html** | ① 新建会议 → Modal 表单 ② 会议列表筛选 ③ 编辑会议 → Modal 编辑表单 ④ 同步日历 → Loading + Toast ⑤ 提醒开关 → Toast ⑥ 搜索会议 | Modal, Toast, Loading, FormValidator |
 | **project_kanban.html** | ① 新建任务 → Modal 表单 ② 看板卡片点击 → 详情 Modal ③ 卡片拖拽排序（视觉模拟）④ 优先级筛选（P0/P1/P2/P3）⑤ 标签筛选 ⑥ 成员头像悬停 tooltip ⑦ 截止日期临近高亮 | Modal, Toast, FormValidator |
+| **project_cost.html** | ① 项目选择器联动刷新 ② 成本类型统计卡片 ③ 新增费用 → Modal 表单 ④ 费用列表按类型筛选 ⑤ 编辑/删除费用 → ConfirmDialog | Modal, Toast, ConfirmDialog, FormValidator |
+| **project_return.html** | ① 项目选择器联动刷新 ② 回款统计（总额/已回/待回）③ 回款进度条 ④ 决策链 Timeline ⑤ 所需资料 Badge ⑥ 新增/编辑回款 → Modal | Modal, Toast, FormValidator, Timeline |
+| **project_review.html** | ① 项目选择器联动刷新 ② 复盘评分统计 ③ 复盘列表筛选 ④ 复盘详情 Modal（问题/经验/改进/交付物）⑤ 新增/编辑复盘 → Modal | Modal, Toast, FormValidator, Rate |
+
+#### 25.2.3 运维管理模块
 
 #### 25.2.3 运维管理模块
 
@@ -2808,7 +2992,10 @@ cockpit_ui/
 │   ├── project_delivery.html # 项目概览
 │   ├── project_nodes.html    # 项目节点
 │   ├── project_meeting.html  # 会议管理
-│   └── project_kanban.html   # 交付看板
+│   ├── project_kanban.html   # 交付看板
+│   ├── project_cost.html     # 成本管理
+│   ├── project_return.html   # 回款管理
+│   └── project_review.html   # 项目复盘
 │
 ├── 运维管理/
 │   ├── ops_records.html         # 运维记录
@@ -2842,7 +3029,8 @@ cockpit_ui/
 | V1.4 | 2026-06-30 | 初始融合平台方案，商机雷达 MVP | 融合平台 |
 | V1.5 | 2026-07-05 | 融合 CRM PRD v1.1 客户关系管理模块：客户档案、权力地图、客户树、关系健康度、数据质量、SOP-06~SOP-11 | 融合平台 + CRM PRD v1.1 |
 | **V1.6** | **2026-07-02** | **完整融合 CRM PRD v1.2 新增内容：① 更新项目交付导航为 4 个二级页面（项目概览/项目节点/会议管理/交付看板）② 新增前端交互设计规范（第 23 章）③ 新增 API 接口规范（第 24 章）④ 新增前端 23 个页面清单与交互映射（第 25 章）⑤ 更新 Demo 文件目录结构** | **融合平台 + CRM PRD v1.2** |
+| V1.7 | 2026-07-08 | 项目交付模块增强：① 新增成本管理、回款管理、项目复盘三个二级页面 ② 新增 project_cost、project_return、project_review 三个数据模型（第 12 章）③ 新增成本/回款/复盘 API 接口规范（第 24 章）④ 新增 SOP-12~SOP-14（成本/回款/复盘管理流程）⑤ 更新导航结构、页面交互映射和文件目录结构，页面总数从 23 扩展至 26 | 融合平台 |
 
 ---
 
-*本文档为"项目管理工具 + 商机雷达"融合平台的完整产品需求文档 V1.6。文档覆盖项目管理、运维服务、客户经营、培训交付、区域 CRM 作战地图、商机识别、知识沉淀七大业务领域，以及前端交互规范、API 接口规范和 23 个 Demo 页面的交互映射。原始 CRM PRD 文件参考：`C:\Users\lurro\Documents\work\宁夏区域CRM作战地图_PRD_v1.2_含SOP.md`。*
+*本文档为"项目管理工具 + 商机雷达"融合平台的完整产品需求文档 V1.7。文档覆盖项目管理、运维服务、客户经营、培训交付、区域 CRM 作战地图、商机识别、知识沉淀七大业务领域，以及前端交互规范、API 接口规范和 26 个 Demo 页面的交互映射。原始 CRM PRD 文件参考：`C:\Users\lurro\Documents\work\宁夏区域CRM作战地图_PRD_v1.2_含SOP.md`。*
